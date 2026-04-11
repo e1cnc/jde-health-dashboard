@@ -1,0 +1,18 @@
+[
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed; ",
+    "group_name": "psn",
+    "instance_name": "PSNENT",
+    "server_alias": "SHELFDRILLING_vmjdshdr032",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:14:57.931244147+00:00"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "psn",
+    "instance_name": "PSNJAS",
+    "server_alias": "SHELFDRILLING_vmjdshdr032",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:14:57.931249057+00:00"
+  }
+]

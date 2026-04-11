@@ -1,24 +1,42 @@
-name: Sync Data
+name: Sync Health Data
+
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: '*/5 * * * *' # Runs every 5 minutes
+  workflow_dispatch:      # Allows you to click "Run workflow" manually
+
 permissions:
-  contents: write  # This is the "code" version of the setting you just changed    
+  contents: write         # Explicitly grants write access to the repo
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Fetch Health Files
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Data Folder
+        run: mkdir -p data
+
+      - name: Fetch Health Files from OCI
         run: |
-          mkdir -p data
-          # This pulls your test file. Later, we add more lines for more customers.
+          # The -L follows redirects, the -o saves the output
           curl -L "${{ secrets.OCI_READ_PAR }}APRTairports.json" -o data/APRTairports.json
-      - name: Commit
+
+      - name: Commit and Push to GitHub
         run: |
-          git config --global user.name "E1CNC"
-          git config --global user.email "e1cnc@outlook.com"
+          # Identify the bot
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Stage the changes
           git add data/
-          git commit -m "Auto-sync from OCI" || exit 0
-          git push
+          
+          # Only commit and push if the file content actually changed
+          if git diff --staged --quiet; then
+            echo "No changes detected in OCI data. Skipping commit."
+          else
+            git commit -m "Auto-sync JDE health data from OCI"
+            git push origin main
+          fi

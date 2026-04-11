@@ -1,0 +1,27 @@
+#!/bin/bash
+# 1. Configuration
+# This PAR must have 'ListObjects' and 'ObjectRead' permissions
+LIST_PAR="https://objectstorage.us-ashburn-1.oraclecloud.com/p/IU_2p9kCDtYriB_hSsREsOClrdSN2xBroB8gJZKDqiHeHOo-MRryYjYn8UwmMK9U/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+
+mkdir -p data_folder
+
+echo "Fetching object list from OCI..."
+# 2. Get the list of all objects in the bucket (OCI returns JSON)
+OBJECT_JSON=$(curl -s -X GET "$LIST_PAR")
+
+# 3. Use 'jq' to find all filenames ending in '_health.json'
+# We filter the 'objects' array for names containing our suffix
+FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[].name | select(endswith("_health.json"))')
+
+if [ -z "$FILENAMES" ]; then
+    echo "No health files found in bucket."
+    exit 0
+fi
+
+# 4. Download each file found
+for FILE in $FILENAMES; do
+    echo "Downloading $FILE..."
+    curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
+done
+
+echo "Successfully downloaded $(echo "$FILENAMES" | wc -l) files."

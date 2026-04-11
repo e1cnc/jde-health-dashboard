@@ -1,0 +1,22 @@
+name: Sync Data
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Health Files
+        run: |
+          mkdir -p data
+          # This pulls your test file. Later, we add more lines for more customers.
+          curl -L "${{ secrets.OCI_READ_PAR }}APRTairports.json" -o data/APRTairports.json
+      - name: Commit
+        run: |
+          git config --global user.name "E1CNC"
+          git config --global user.email "e1cnc@outlook.com"
+          git add data/
+          git commit -m "Auto-sync from OCI" || exit 0
+          git push

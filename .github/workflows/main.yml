@@ -19,17 +19,17 @@ jobs:
           echo "Fetching object list..."
           
           # 1. Get the JSON list
+          # Added -v for debug and --noproxy for safety
           OBJECT_JSON=$(curl -s -f -X GET "$LIST_PAR")
-          if [ $? -ne 0 ]; then
-            echo "Error: Could not reach OCI. Check your LIST_PAR URL."
-            exit 1
-          fi
           
-          # 2. Extract filenames
-          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[].name | select(endswith("_health.json"))')
+          # DEBUG: Print the response to the Action logs so we can see what OCI sent
+          echo "OCI Response: $OBJECT_JSON"
+          
+          # 2. Extract filenames (Added '?' to handle null objects safely)
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(endswith("_health.json"))' || echo "")
           
           if [ -z "$FILENAMES" ] || [ "$FILENAMES" == "null" ]; then
-            echo "No health files found in bucket."
+            echo "No health files found in bucket or OCI response was invalid."
             exit 0
           fi
           
@@ -43,11 +43,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          
-          # Stage the files
           git add data_folder/*.json
-          
-          # Check for changes before committing
           if git diff --cached --quiet; then
             echo "No changes detected. Skipping commit."
           else

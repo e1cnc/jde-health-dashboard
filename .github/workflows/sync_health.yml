@@ -2,11 +2,11 @@ name: Sync Health Data
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Runs every 5 minutes
-  workflow_dispatch:      # Allows manual trigger
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write         # Allows the bot to push changes to your repo
+  contents: write
 
 jobs:
   build:
@@ -21,42 +21,40 @@ jobs:
 
       - name: Fetch and Loop Through OCI Objects
         run: |
-          # 1. Download the 'targets.txt' which contains our list of files
-          # We use -s to keep the logs clean and -L for redirects
+          # 1. Download the targets list
           curl -s -L "${{ secrets.OCI_READ_PAR }}targets.txt" -o targets.txt
           
-          # Check if targets.txt exists and has content
+          # 2. Safety Check: If targets.txt contains an OCI error code, ignore it
+          if grep -q "code:" targets.txt; then
+            echo "Warning: targets.txt contains an OCI error. Clearing local copy."
+            rm targets.txt
+            touch targets.txt
+          fi
+
           if [ -s targets.txt ]; then
-            echo "Found targets.txt, starting sync..."
+            echo "Found valid targets.txt, starting sync..."
             
-            # 2. Read each line and download the corresponding file
             while IFS= read -r filename || [ -n "$filename" ]; do
-              # Remove any hidden Windows carriage returns (\r)
               clean_name=$(echo "$filename" | tr -d '\r' | xargs)
               
               if [ -n "$clean_name" ]; then
                 echo "Downloading: $clean_name"
-                curl -s -L "${{ secrets.OCI_READ_PAR }}$clean_name" -o "data/$clean_name"
+                # If a specific file fails, we use || true to keep the loop moving
+                curl -s -L "${{ secrets.OCI_READ_PAR }}$clean_name" -o "data/$clean_name" || echo "Failed to download $clean_name"
               fi
             done < targets.txt
           else
-            echo "Error: targets.txt is empty or could not be downloaded from OCI."
-            exit 1
+            echo "No files listed in targets.txt or file is empty."
           fi
 
       - name: Commit and Push to GitHub
         run: |
-          # Setup the bot identity
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Add all files in the data folder
           git add data/
-          
-          # Only commit if there are actual changes
           if git diff --staged --quiet; then
-            echo "No changes detected in health data. Skipping commit."
+            echo "No changes detected. Skipping commit."
           else
-            git commit -m "Auto-sync health data for all customers"
+            git commit -m "Auto-sync JDE health data"
             git push origin main
           fi

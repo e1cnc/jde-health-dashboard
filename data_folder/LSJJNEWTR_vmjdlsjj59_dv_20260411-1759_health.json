@@ -1,0 +1,42 @@
+[
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "dv",
+    "instance_name": "DV_JAS1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:59:19.078637223+00:00"
+  },
+  {
+    "details": "Login: Passed; DB Service: Passed; BSFN Service: Passed; ",
+    "group_name": "dv",
+    "instance_name": "DV_BSSV",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:59:19.078642361+00:00"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Passed; Basic Auth: Passed; ",
+    "group_name": "dv",
+    "instance_name": "DV_AIS",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:59:19.078645255+00:00"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed; ",
+    "group_name": "dv",
+    "instance_name": "DV_ES",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:59:19.078647068+00:00"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "dv",
+    "instance_name": "DV_JAS2_SSO",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T17:59:19.078648590+00:00"
+  }
+]

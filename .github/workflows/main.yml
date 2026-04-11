@@ -1,27 +1,44 @@
-#!/bin/bash
-# 1. Configuration
-# This PAR must have 'ListObjects' and 'ObjectRead' permissions
-LIST_PAR="https://objectstorage.us-ashburn-1.oraclecloud.com/p/IU_2p9kCDtYriB_hSsREsOClrdSN2xBroB8gJZKDqiHeHOo-MRryYjYn8UwmMK9U/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+name: JDE Health Sync
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Runs every 5 minutes
+  workflow_dispatch: # Allows you to run it manually for testing
 
-mkdir -p data_folder
+jobs:
+  sync-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-echo "Fetching object list from OCI..."
-# 2. Get the list of all objects in the bucket (OCI returns JSON)
-OBJECT_JSON=$(curl -s -X GET "$LIST_PAR")
+      - name: Fetch Data from OCI
+        env:
+          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/YOUR_LIST_PAR_HERE/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+        run: |
+          mkdir -p data_folder
+          echo "Fetching object list from OCI..."
+          
+          # 1. Get the JSON list of all objects
+          OBJECT_JSON=$(curl -s -X GET "$LIST_PAR")
+          
+          # 2. Extract filenames ending in _health.json
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[].name | select(endswith("_health.json"))')
+          
+          if [ -z "$FILENAMES" ] || [ "$FILENAMES" == "null" ]; then
+            echo "No health files found in bucket."
+            exit 0
+          fi
+          
+          # 3. Download each file
+          for FILE in $FILENAMES; do
+            echo "Downloading $FILE..."
+            curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
+          done
 
-# 3. Use 'jq' to find all filenames ending in '_health.json'
-# We filter the 'objects' array for names containing our suffix
-FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[].name | select(endswith("_health.json"))')
-
-if [ -z "$FILENAMES" ]; then
-    echo "No health files found in bucket."
-    exit 0
-fi
-
-# 4. Download each file found
-for FILE in $FILENAMES; do
-    echo "Downloading $FILE..."
-    curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
-done
-
-echo "Successfully downloaded $(echo "$FILENAMES" | wc -l) files."
+      - name: Commit and Push to Pages
+        run: |
+          git config --global user.name "E1CNC"
+          git config --global user.email "e1cnc@outlook.com"
+          git add data_folder/*.json
+          git commit -m "Update health data: $(date)" || echo "No changes to commit"
+          git push

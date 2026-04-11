@@ -1,8 +1,8 @@
 name: JDE Health Sync
 on:
   schedule:
-    - cron: '*/5 * * * *' # Runs every 5 minutes
-  workflow_dispatch: # Allows you to run it manually for testing
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   sync-health:
@@ -13,15 +13,19 @@ jobs:
 
       - name: Fetch Data from OCI
         env:
-          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/YOUR_LIST_PAR_HERE/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
-          echo "Fetching object list from OCI..."
+          echo "Fetching object list..."
           
-          # 1. Get the JSON list of all objects
-          OBJECT_JSON=$(curl -s -X GET "$LIST_PAR")
+          # 1. Get the JSON list
+          OBJECT_JSON=$(curl -s -f -X GET "$LIST_PAR")
+          if [ $? -ne 0 ]; then
+            echo "Error: Could not reach OCI. Check your LIST_PAR URL."
+            exit 1
+          fi
           
-          # 2. Extract filenames ending in _health.json
+          # 2. Extract filenames
           FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[].name | select(endswith("_health.json"))')
           
           if [ -z "$FILENAMES" ] || [ "$FILENAMES" == "null" ]; then
@@ -35,10 +39,18 @@ jobs:
             curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
           done
 
-      - name: Commit and Push to Pages
+      - name: Commit and Push
         run: |
-          git config --global user.name "E1CNC"
-          git config --global user.email "e1cnc@outlook.com"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # Stage the files
           git add data_folder/*.json
-          git commit -m "Update health data: $(date)" || echo "No changes to commit"
-          git push
+          
+          # Check for changes before committing
+          if git diff --cached --quiet; then
+            echo "No changes detected. Skipping commit."
+          else
+            git commit -m "Update health data: $(date)"
+            git push
+          fi

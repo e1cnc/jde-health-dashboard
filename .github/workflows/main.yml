@@ -1,7 +1,7 @@
-name: JDE Health Sync
+name: JDE Health Sync & Cleanup
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *' # Every 30 mins
   workflow_dispatch:
 
 jobs:
@@ -11,42 +11,41 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch Data from OCI
+      - name: Fetch and Cleanup Data
         env:
           LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
-          echo "Fetching object list..."
           
-          # 1. Get the JSON list
-          # Added -v for debug and --noproxy for safety
+          # 1. Download New Files from OCI
+          echo "Fetching new files..."
           OBJECT_JSON=$(curl -s -f -X GET "$LIST_PAR")
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(endswith("_health.json"))')
           
-          # DEBUG: Print the response to the Action logs so we can see what OCI sent
-          echo "OCI Response: $OBJECT_JSON"
-          
-          # 2. Extract filenames (Added '?' to handle null objects safely)
-          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(endswith("_health.json"))' || echo "")
-          
-          if [ -z "$FILENAMES" ] || [ "$FILENAMES" == "null" ]; then
-            echo "No health files found in bucket or OCI response was invalid."
-            exit 0
-          fi
-          
-          # 3. Download each file
           for FILE in $FILENAMES; do
-            echo "Downloading $FILE..."
-            curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
+            # Only download if we don't already have it
+            if [ ! -f "data_folder/${FILE}" ]; then
+              echo "Downloading $FILE..."
+              curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
+            fi
           done
+
+          # 2. Cleanup Old Files (Older than 15 days)
+          echo "Cleaning up files older than 15 days..."
+          find data_folder -name "*.json" -type f -mtime +15 -delete
+
+          # 3. Generate Manifest for Dashboard
+          echo "Generating manifest.json..."
+          ls data_folder/*.json | xargs -n 1 basename | jq -R . | jq -s . > data_folder/manifest.json
 
       - name: Commit and Push
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data_folder/*.json
+          git add data_folder/
           if git diff --cached --quiet; then
-            echo "No changes detected. Skipping commit."
+            echo "No changes."
           else
-            git commit -m "Update health data: $(date)"
+            git commit -m "Sync & 15-day cleanup: $(date)"
             git push
           fi

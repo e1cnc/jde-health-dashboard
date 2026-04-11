@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+permissions:
+  contents: write  # This is the "code" version of the setting you just changed    
 jobs:
   build:
     runs-on: ubuntu-latest

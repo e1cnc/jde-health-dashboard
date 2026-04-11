@@ -1,0 +1,90 @@
+[
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_BSSV1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654335724+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_AIS1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654340541+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JAS1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654341553+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JAS3_SSO",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654342694+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_BSSV2",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654343947+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_ES2",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654344958+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JAS2",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654346320+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JAS4_SSO",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654347301+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JASAIS1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654348463+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_JAS5_SSO",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654349525+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "py",
+    "instance_name": "PY_ES1",
+    "server_alias": "LSJJNEWTR_vmjdlsjj59",
+    "status": "STOPPED",
+    "timestamp": "2026-04-11T13:04:47.654350346+00:00"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "details": "Login: Passed; Interactive App: Failed; UBE: Failed; OVR: Failed; ",
+    "group_name": "dev",
+    "instance_name": "DEVJAS",
+    "server_alias": "SHELFDRILLING_localhost",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T13:45:37.116155990+00:00"
+  },
+  {
+    "details": "Port Test: Failed; UBE: Failed; BSFN: Failed; ",
+    "group_name": "dev",
+    "instance_name": "DEVENTBT",
+    "server_alias": "SHELFDRILLING_localhost",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T13:45:37.116161020+00:00"
+  },
+  {
+    "details": "Port Test: Failed; UBE: Failed; BSFN: Failed; ",
+    "group_name": "dev",
+    "instance_name": "DEVENTLG",
+    "server_alias": "SHELFDRILLING_localhost",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T13:45:37.116163714+00:00"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Failed; UBE: Failed; OVR: Failed; ",
+    "group_name": "dev",
+    "instance_name": "DEVJASA",
+    "server_alias": "SHELFDRILLING_localhost",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T13:45:37.116166390+00:00"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Failed; Form Service UBE: Failed; JWT Trust Login: Passed; Basic Auth: Failed; ",
+    "group_name": "dev",
+    "instance_name": "DEVAIS",
+    "server_alias": "SHELFDRILLING_localhost",
+    "status": "RUNNING",
+    "timestamp": "2026-04-11T13:45:37.116169525+00:00"
+  }
+]

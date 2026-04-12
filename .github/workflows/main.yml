@@ -18,7 +18,7 @@ jobs:
           mkdir -p docs
           
           # 1. Fetch object list from OCI
-          LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2xxxx/b/JDE_Monitoring_Data/o/'
+          LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
           OBJECT_JSON=$(curl -f -sSL "$LIST_URL")
           
           # 2. Filter for your specific naming convention

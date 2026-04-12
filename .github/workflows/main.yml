@@ -18,7 +18,7 @@ jobs:
           mkdir -p data_folder
           mkdir -p docs
           
-          # 2. Fetch object list from OCI
+          # 2. Fetch object list from OCI bucket
           LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
           echo "Fetching object list..."
           OBJECT_JSON=$(curl -f -sSL "$LIST_URL")

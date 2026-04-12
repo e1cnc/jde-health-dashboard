@@ -1,0 +1,15 @@
+[build]
+# The entry point for the build
+target = "index.html"
+# The folder where GitHub Pages looks for files
+dist = "docs"
+# CRITICAL: Ensures internal paths work on e1cnc.github.io/jde-health-dashboard/
+public_url = "/jde-health-dashboard/"
+
+[clean]
+# Cleans the docs folder before every build to prevent "ghost" files
+dist = true
+
+[serve]
+# For local testing at http://localhost:8080
+port = 8080

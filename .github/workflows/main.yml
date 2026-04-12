@@ -6,7 +6,7 @@ on:
   workflow_dispatch:      # Allows manual trigger
 
 jobs:
-  sync-health:
+  sync-json:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

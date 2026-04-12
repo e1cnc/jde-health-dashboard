@@ -2,62 +2,87 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct HealthRecord {
-    customer: String,
-    host: String,
-    group: String,
-    timestamp: String,
-    filename: String,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct HealthInstance {
+    pub customer_name: String,
+    pub host_name: String,
+    pub instance_name: String,
+    pub status: String,
+    pub last_sync: String,
 }
 
 #[component]
-fn Dashboard() -> impl IntoView {
-    // Create a resource that fetches our consolidated JSON
-    let health_data = create_resource(|| (), |_| async move {
-        let resp = Request::get("./consolidated_health.json")
-            .send()
-            .await
-            .unwrap()
-            .json::<Vec<HealthRecord>>()
-            .await;
-        resp.unwrap_or_default()
-    });
+fn App() -> impl IntoView {
+    // Resource to fetch data asynchronously
+    let health_data = create_resource(|| (), |_| async move { fetch_health_data().await });
 
     view! {
-        <div style="font-family: sans-serif; padding: 20px;">
-            <h2 style="color: #004085; border-bottom: 2px solid #004085;">"JDE Global Health (WASM)"</h2>
-            <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+        <div class="container" style="padding: 20px; font-family: sans-serif;">
+            <h2 style="color: #004488; border-bottom: 2px solid #004488;">"JDE Global Health Dashboard"</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
                 <thead>
-                    <tr style="background: #004085; color: white;">
-                        <th style="padding: 12px; text-align: left;">"Customer"</th>
-                        <th style="padding: 12px; text-align: left;">"Host"</th>
-                        <th style="padding: 12px; text-align: left;">"Group"</th>
-                        <th style="padding: 12px; text-align: left;">"Last Sync"</th>
+                    <tr style="background-color: #004488; color: white; text-align: left;">
+                        <th style="padding: 12px; border: 1px solid #ddd;">"Customer"</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">"Host"</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">"Group"</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">"Status"</th>
+                        <th style="padding: 12px; border: 1px solid #ddd;">"Last Sync"</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {move || match health_data.get() {
-                        None => view! { <tr><td colspan="4">"Loading data..."</td></tr> }.into_view(),
-                        Some(records) => {
-                            records.into_iter().map(|rec| {
-                                view! {
-                                    <tr style="border-bottom: 1px solid #eee;">
-                                        <td style="padding: 12px;"><b>{rec.customer}</b></td>
-                                        <td style="padding: 12px;">{rec.host}</td>
-                                        <td style="padding: 12px;">{rec.group}</td>
-                                        <td style="padding: 12px; color: #666;">{rec.timestamp}</td>
-                                    </tr>
+                    <Transition fallback=move || view! { <tr><td colspan="5">"Loading health data..."</td></tr> }>
+                        {move || {
+                            health_data.get().map(|data| {
+                                match data {
+                                    Ok(instances) => {
+                                        instances.into_iter().map(|inst| {
+                                            let status_color = if inst.status == "RUNNING" { "#d4edda" } else { "#f8d7da" };
+                                            let text_color = if inst.status == "RUNNING" { "#155724" } else { "#721c24" };
+                                            
+                                            view! {
+                                                <tr>
+                                                    <td style="padding: 10px; border: 1px solid #ddd;">{inst.customer_name}</td>
+                                                    <td style="padding: 10px; border: 1px solid #ddd;">{inst.host_name}</td>
+                                                    <td style="padding: 10px; border: 1px solid #ddd;">{inst.instance_name}</td>
+                                                    <td style="padding: 10px; border: 1px solid #ddd; background-color: {status_color}; color: {text_color}; font-weight: bold;">
+                                                        {inst.status}
+                                                    </td>
+                                                    <td style="padding: 10px; border: 1px solid #ddd; font-size: 0.85em;">{inst.last_sync}</td>
+                                                </tr>
+                                            }
+                                        }).collect_view()
+                                    },
+                                    Err(e) => view! { <tr><td colspan="5" style="color: red;">{format!("Error loading data: {}", e)}</td></tr> }.into_view()
                                 }
-                            }).collect_view()
-                        }
-                    }}
+                            })
+                        }}
+                    </Transition>
                 </tbody>
             </table>
         </div>
     }
 }
 
+async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
+    // Using "./" ensures it looks in the current subfolder (/docs/)
+    let url = "./dashboard_data.json";
+    
+    let resp = Request::get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.ok() {
+        return Err(format!("Request failed: {} {}", resp.status(), resp.status_text()));
+    }
+
+    let data: Vec<HealthInstance> = resp.json()
+        .await
+        .map_err(|e| format!("JSON Parse Error: {}", e))?;
+        
+    Ok(data)
+}
+
 fn main() {
-    mount_to_body(|| view! { <Dashboard /> })
+    mount_to_body(|| view! { <App /> })
 }

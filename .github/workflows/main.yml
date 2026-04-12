@@ -9,39 +9,41 @@ jobs:
   sync-health:
     runs-on: ubuntu-latest
     steps:
+      # Updated to v4 to fix that Node.js 20 warning
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Fetch and Consolidate Data
-        env:
-          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
           
-          # 1. Fetch object list
-          echo "Fetching object list..."
-          OBJECT_JSON=$(curl -s -f GET "$LIST_PAR")
+          # We use single quotes around the URL to prevent shell expansion issues
+          LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
           
-          # 2. STRICT FILTER: Only download files matching Customer_Host_Group_TS_health.json
-          # This specifically ignores targets.txt or any other non-conforming files.
+          echo "Fetching object list..."
+          # Added -L to follow redirects and -sS to show errors if it fails
+          OBJECT_JSON=$(curl -f -sSL "$LIST_URL")
+          
+          # Extract health files
           FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(test("^[a-zA-Z0-9]+_.*_health\\.json$"))')
           
-          for FILE in $FILENAMES; do
-            if [ ! -f "data_folder/${FILE}" ]; then
-                echo "Downloading $FILE..."
-                # --fail ensures that if OCI returns an error, curl stops immediately 
-                # and doesn't create a "poisoned" file with the error message.
-                curl -sL --fail "${LIST_PAR}${FILE}" -o "data_folder/${FILE}" || echo "Skipped $FILE"
-            fi
-          done
+          if [ -z "$FILENAMES" ]; then
+            echo "No matching health files found in bucket."
+          else
+            for FILE in $FILENAMES; do
+              if [ ! -f "data_folder/${FILE}" ]; then
+                  echo "Downloading $FILE..."
+                  curl -sL --fail "${LIST_URL}${FILE}" -o "data_folder/${FILE}" || echo "Skipped $FILE"
+              fi
+            done
+          fi
 
-          # 3. Cleanup files older than 15 days
+          # Cleanup and Build dashboard_data.json
           find data_folder -name "*_health.json" -type f -mtime +15 -delete
-
-          # 4. Build consolidated dashboard_data.json
+          
           echo "Building dashboard_data.json..."
-          # Group by server components and take the latest version
-          LATEST_FILES=$(ls data_folder/*_health.json | xargs -n 1 basename | sort -r | awk -F_ '!visited[$1$2$3]++')
+          # Grouping logic to get latest files
+          LATEST_FILES=$(ls data_folder/*_health.json 2>/dev/null | xargs -n 1 basename 2>/dev/null | sort -r | awk -F_ '!visited[$1$2$3]++') || true
           
           echo "[" > dashboard_data.json
           FIRST=true
@@ -56,9 +58,10 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add data_folder/ dashboard_data.json
+          # Only commit if there are actually changes to avoid dummy errors
           if git diff --cached --quiet; then
-            echo "No changes."
+            echo "No changes to commit."
           else
-            git commit -m "Sync & Build Data: $(date)"
+            git commit -m "Sync & Build: $(date)"
             git push
           fi

@@ -14,7 +14,7 @@ jobs:
 
       - name: Fetch and Consolidate Data
         env:
-          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2xxxx/b/JDE_Monitoring_Data/o/"
+          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
           

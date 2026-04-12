@@ -1,0 +1,42 @@
+[
+  {
+    "details": "",
+    "group_name": "dv",
+    "instance_name": "DEV_JAS2",
+    "server_alias": "LSJJOLDTR_vmjdlsjj29",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-12T17:41:01.160120189+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "dv",
+    "instance_name": "DEV_ES",
+    "server_alias": "LSJJOLDTR_vmjdlsjj29",
+    "status": "STOPPED",
+    "timestamp": "2026-04-12T17:41:01.160124878+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "dv",
+    "instance_name": "DEV_BSSV",
+    "server_alias": "LSJJOLDTR_vmjdlsjj29",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-12T17:41:01.160126221+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "dv",
+    "instance_name": "DEV_AIS",
+    "server_alias": "LSJJOLDTR_vmjdlsjj29",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-12T17:41:01.160127483+00:00"
+  },
+  {
+    "details": "",
+    "group_name": "dv",
+    "instance_name": "DEV_JAS1",
+    "server_alias": "LSJJOLDTR_vmjdlsjj29",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-12T17:41:01.160129257+00:00"
+  }
+]

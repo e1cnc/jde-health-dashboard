@@ -16,7 +16,7 @@ jobs:
         run: |
           mkdir -p data_folder
           
-          # 1. Diagnostic Fetch
+          # 1. Diagnostic Fetch test
           # We use -v to see the headers and --trace-ascii for deep debugging
           echo "Attempting to fetch object list..."
           

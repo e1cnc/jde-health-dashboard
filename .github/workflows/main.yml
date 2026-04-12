@@ -1,51 +1,53 @@
-name: JDE Health Sync & Cleanup
+name: JDE Health Sync & WASM Deploy
+
 on:
   schedule:
-    - cron: '*/30 * * * *' # Every 30 mins
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
-  sync-health:
+  sync-and-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch and Cleanup Data
+      - name: Fetch and Process Data
         env:
           LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
           
-          # 1. Download New Files from OCI
-          echo "Fetching new files..."
+          # 1. Download from OCI
           OBJECT_JSON=$(curl -s -f -X GET "$LIST_PAR")
           FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(endswith("_health.json"))')
           
           for FILE in $FILENAMES; do
-            # Only download if we don't already have it
             if [ ! -f "data_folder/${FILE}" ]; then
-              echo "Downloading $FILE..."
               curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
             fi
           done
 
-          # 2. Cleanup Old Files (Older than 15 days)
-          echo "Cleaning up files older than 15 days..."
-          find data_folder -name "*.json" -type f -mtime +15 -delete
+          # 2. Cleanup (15 days)
+          find data_folder -name "*_health.json" -type f -mtime +15 -delete
 
-          # 3. Generate Manifest for Dashboard
-          echo "Generating manifest.json..."
-          ls data_folder/*.json | xargs -n 1 basename | jq -R . | jq -s . > data_folder/manifest.json
+          # 3. Create a SINGLE consolidated JSON for the WASM Frontend
+          # This groups the latest status for every server into one file
+          echo "Building consolidated_health.json..."
+          ls data_folder/*_health.json | xargs -n 1 basename | sort -r | jq -R '
+            split("_") as $p | 
+            {
+              filename: .,
+              customer: $p[0],
+              host: $p[1],
+              group: $p[2],
+              timestamp: $p[3]
+            }' | jq -s 'group_by(.customer, .host, .group) | map(std::first)' > consolidated_health.json
 
-      - name: Commit and Push
+      - name: Commit and Push Data
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data_folder/
-          if git diff --cached --quiet; then
-            echo "No changes."
-          else
-            git commit -m "Sync & 15-day cleanup: $(date)"
-            git push
-          fi
+          git add data_folder/ consolidated_health.json
+          git commit -m "Sync health data: $(date)" || echo "No changes"
+          git push

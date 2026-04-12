@@ -2,11 +2,11 @@ name: JDE Health Sync & WASM Data Build
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Runs every 30 mins
-  workflow_dispatch:      # Allows manual trigger
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
 
 jobs:
-  sync-json:
+  sync-health:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -14,57 +14,46 @@ jobs:
 
       - name: Fetch and Consolidate Data
         run: |
-          # 1. Setup folders
           mkdir -p data_folder
           mkdir -p docs
           
-          # 2. Fetch object list from OCI bucket
-          LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
-          echo "Fetching object list..."
+          # 1. Fetch object list from OCI
+          LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2xxxx/b/JDE_Monitoring_Data/o/'
           OBJECT_JSON=$(curl -f -sSL "$LIST_URL")
           
-          # 3. Filter for valid health files only
-          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(test("^[a-zA-Z0-9]+_.*_health\\.json$"))')
+          # 2. Filter for your specific naming convention
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(test(".*_.*_.*_.*_health\\.json$"))')
           
           if [ -z "$FILENAMES" ]; then
             echo "No matching health files found."
           else
             for FILE in $FILENAMES; do
               if [ ! -f "data_folder/${FILE}" ]; then
-                  echo "Downloading $FILE..."
                   curl -sL --fail "${LIST_URL}${FILE}" -o "data_folder/${FILE}" || echo "Skipped $FILE"
               fi
             done
           fi
 
-          # 4. Cleanup files older than 15 days
+          # 3. Cleanup files older than 15 days
           find data_folder -name "*_health.json" -type f -mtime +15 -delete
 
-          # 5. Build dashboard_data.json
-          echo "Building dashboard_data.json..."
-          echo "[" > dashboard_data.json
+          # 4. CONSOLIDATION LOGIC (The Fix)
+          # We "slurp" (-s) all files and "add" them to join the arrays correctly.
+          echo "Merging JSON files..."
+          if ls data_folder/*_health.json 1> /dev/null 2>&1; then
+            jq -s 'add' data_folder/*_health.json > docs/dashboard_data.json
+          else
+            echo "[]" > docs/dashboard_data.json
+          fi
           
-          # Logic: Sort files by timestamp and keep only the latest for each host/group
-          LATEST_FILES=$(ls data_folder/*_health.json 2>/dev/null | xargs -n 1 basename 2>/dev/null | sort -r | awk -F_ '!visited[$1$2$3]++') || true
-          
-          FIRST=true
-          for F in $LATEST_FILES; do
-            if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> dashboard_data.json; fi
-            cat "data_folder/$F" | jq -c '.[]' >> dashboard_data.json
-          done
-          echo "]" >> dashboard_data.json
-
-          # CRITICAL STEP: Move the JSON to the website folder so WASM can find it
-          cp dashboard_data.json docs/dashboard_data.json
+          # Sync a copy to the root just in case
+          cp docs/dashboard_data.json dashboard_data.json
 
       - name: Commit and Push
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          
-          # Add the raw data, the root JSON, and the website's copy of the JSON
           git add data_folder/ dashboard_data.json docs/dashboard_data.json
-          
           if git diff --cached --quiet; then
             echo "No changes to sync."
           else

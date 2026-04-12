@@ -4,24 +4,29 @@ use gloo_net::http::Request;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
+    #[serde(default)]
     pub customer_name: String,
+    #[serde(default)]
     pub host_name: String,
+    #[serde(default)]
     pub instance_name: String,
+    #[serde(default)]
     pub status: String,
+    #[serde(default)]
     pub last_sync: String,
+    #[serde(default)]
+    pub details: String,
 }
 
 #[component]
 fn App() -> impl IntoView {
-    // Resource triggers the fetch_health_data function on load
     let health_data = create_resource(|| (), |_| async move { fetch_health_data().await });
 
     view! {
         <div class="container" style="padding: 20px; font-family: sans-serif; max-width: 1200px; margin: auto;">
             <h2 style="color: #004488; border-bottom: 2px solid #004488; padding-bottom: 10px;">
-                "JDE Global Health Checks Dashboard"
+                "JDE Global Healthmonitor Dashboard"
             </h2>
-            
             <table style="width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                 <thead>
                     <tr style="background-color: #004488; color: white; text-align: left;">
@@ -38,11 +43,7 @@ fn App() -> impl IntoView {
                             health_data.get().map(|data| {
                                 match data {
                                     Ok(instances) => {
-                                        if instances.is_empty() {
-                                            return view! { <tr><td colspan="5" style="padding: 20px; text-align: center;">"No data found in dashboard_data.json"</td></tr> }.into_view();
-                                        }
                                         instances.into_iter().map(|inst| {
-                                            // Dynamic coloring based on JDE status
                                             let (bg, txt) = if inst.status == "RUNNING" { ("#d4edda", "#155724") } else { ("#f8d7da", "#721c24") };
                                             view! {
                                                 <tr style="border-bottom: 1px solid #eee;">
@@ -69,23 +70,10 @@ fn App() -> impl IntoView {
 }
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
-    // Use the relative path so it looks inside the /docs folder
     let url = "./dashboard_data.json";
-    
-    let resp = Request::get(url)
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
-
-    if !resp.ok() {
-        return Err(format!("Server returned error: {}", resp.status()));
-    }
-
-    resp.json::<Vec<HealthInstance>>()
-        .await
-        .map_err(|e| format!("JSON parsing failed: {}", e))
+    let resp = Request::get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.ok() { return Err(format!("HTTP {}", resp.status())); }
+    resp.json::<Vec<HealthInstance>>().await.map_err(|e| format!("JSON Parse Error: {}", e))
 }
 
-fn main() {
-    mount_to_body(|| view! { <App /> })
-}
+fn main() { mount_to_body(|| view! { <App /> }) }

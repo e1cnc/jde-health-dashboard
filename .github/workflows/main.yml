@@ -21,7 +21,7 @@ jobs:
           LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
           OBJECT_JSON=$(curl -f -sSL "$LIST_URL")
           
-          # 2. Filter for your specific naming convention
+          # 2. Filter for your naming convention
           FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(test(".*_.*_.*_.*_health\\.json$"))')
           
           if [ -z "$FILENAMES" ]; then
@@ -37,16 +37,28 @@ jobs:
           # 3. Cleanup files older than 15 days
           find data_folder -name "*_health.json" -type f -mtime +15 -delete
 
-          # 4. CONSOLIDATION LOGIC (The Fix)
-          # We "slurp" (-s) all files and "add" them to join the arrays correctly.
-          echo "Merging JSON files..."
-          if ls data_folder/*_health.json 1> /dev/null 2>&1; then
-            jq -s 'add' data_folder/*_health.json > docs/dashboard_data.json
-          else
-            echo "[]" > docs/dashboard_data.json
-          fi
+          # 4. CONSOLIDATION & METADATA INJECTION
+          # This builds a single valid JSON array from all individual files
+          echo "[" > docs/dashboard_data.json
+          FIRST=true
           
-          # Sync a copy to the root just in case
+          for FILE in data_folder/*_health.json; do
+            [ -e "$FILE" ] || continue
+            
+            # Extract info from filename: CUSTOMER_host_dv_datetime_health.json
+            BASENAME=$(basename "$FILE")
+            CUST=$(echo "$BASENAME" | cut -d'_' -f1)
+            HOST=$(echo "$BASENAME" | cut -d'_' -f2)
+            
+            if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> docs/dashboard_data.json; fi
+            
+            # Inject filename data into the JSON objects so Rust can see them
+            jq -c --arg cust "$CUST" --arg host "$HOST" \
+              '.[] | . + {customer_name: $cust, host_name: $host}' "$FILE" >> docs/dashboard_data.json
+          done
+          echo "]" >> docs/dashboard_data.json
+          
+          # Maintain a copy in the root for redundancy
           cp docs/dashboard_data.json dashboard_data.json
 
       - name: Commit and Push

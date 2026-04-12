@@ -1,4 +1,4 @@
-name: JDE Health Sync & WASM Deploy
+name: JDE Health Sync & WASM Data Build
 
 on:
   schedule:
@@ -6,48 +6,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync-and-build:
+  sync-health:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch and Process Data
+      - name: Fetch and Consolidate Data
         env:
-          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+          LIST_PAR: "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2xxxx/b/JDE_Monitoring_Data/o/"
         run: |
           mkdir -p data_folder
           
-          # 1. Download from OCI
-          OBJECT_JSON=$(curl -s -f -X GET "$LIST_PAR")
-          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(endswith("_health.json"))')
+          # 1. Get the list of objects from OCI
+          echo "Fetching object list..."
+          OBJECT_JSON=$(curl -s -f GET "$LIST_PAR")
+          
+          # 2. Extract ONLY valid health.json filenames
+          # This prevents picking up targets.txt or other random bucket files
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(. != null and endswith("_health.json"))')
           
           for FILE in $FILENAMES; do
             if [ ! -f "data_folder/${FILE}" ]; then
-              curl -s -L "${LIST_PAR}${FILE}" -o "data_folder/${FILE}"
+                echo "Downloading $FILE..."
+                # --fail ensures that if the file is missing (404), curl exits 0 without creating a file
+                curl -sL --fail "${LIST_PAR}${FILE}" -o "data_folder/${FILE}" || echo "Notice: Could not download $FILE, skipping."
             fi
           done
 
-          # 2. Cleanup (15 days)
-          find data_folder -name "*_health.json" -type f -mtime +15 -delete
+          # 3. Cleanup files older than 15 days
+          find data_folder -name "*.json" -type f -mtime +15 -delete
 
-          # 3. Create a SINGLE consolidated JSON for the WASM Frontend
-          # This groups the latest status for every server into one file
-          echo "Building consolidated_health.json..."
-          ls data_folder/*_health.json | xargs -n 1 basename | sort -r | jq -R '
-            split("_") as $p | 
-            {
-              filename: .,
-              customer: $p[0],
-              host: $p[1],
-              group: $p[2],
-              timestamp: $p[3]
-            }' | jq -s 'group_by(.customer, .host, .group) | map(std::first)' > consolidated_health.json
+          # 4. Build consolidated dashboard_data.json
+          echo "Building dashboard_data.json..."
+          # Group by Customer_Host_Group and take the latest timestamp
+          LATEST_FILES=$(ls data_folder/*_health.json | xargs -n 1 basename | sort -r | awk -F_ '!visited[$1$2$3]++')
+          
+          echo "[" > dashboard_data.json
+          FIRST=true
+          for F in $LATEST_FILES; do
+            if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> dashboard_data.json; fi
+            cat "data_folder/$F" | jq -c '.[]' >> dashboard_data.json
+          done
+          echo "]" >> dashboard_data.json
 
-      - name: Commit and Push Data
+      - name: Commit and Push
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data_folder/ consolidated_health.json
-          git commit -m "Sync health data: $(date)" || echo "No changes"
+          git add data_folder/ dashboard_data.json
+          git commit -m "Sync & Build Data: $(date)" || echo "No changes to commit"
           git push

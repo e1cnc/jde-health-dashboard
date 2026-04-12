@@ -1,9 +1,9 @@
-name: JDE Health Sync
+name: JDE Health Sync & WASM Data Build
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch:
+    - cron: '*/30 * * * *' # Runs every 30 mins
+  workflow_dispatch:      # Allows manual trigger
 
 jobs:
   sync-health:
@@ -12,54 +12,62 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch and Build
+      - name: Fetch and Consolidate Data
         run: |
+          # 1. Setup folders
           mkdir -p data_folder
+          mkdir -p docs
           
-          # 1. Diagnostic Fetch test
-          # We use -v to see the headers and --trace-ascii for deep debugging
-          echo "Attempting to fetch object list..."
-          
+          # 2. Fetch object list from OCI
           LIST_URL='https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/'
+          echo "Fetching object list..."
+          OBJECT_JSON=$(curl -f -sSL "$LIST_URL")
           
-          # Try to get the list. If curl fails (Exit 22), we catch the error message.
-          if ! curl -f -sSL "$LIST_URL" -o list.json; then
-            echo "CURL Failed. Checking response with headers..."
-            curl -i -L "$LIST_URL" | head -n 20
-            echo "Trying alternative (wget)..."
-            wget --quiet "$LIST_URL" -O list.json || { echo "Wget also failed"; exit 1; }
-          fi
-
-          # 2. Extract and Download
-          FILENAMES=$(jq -r '.objects[]?.name | select(test("^[a-zA-Z0-9]+_.*_health\\.json$"))' list.json)
+          # 3. Filter for valid health files only
+          FILENAMES=$(echo "$OBJECT_JSON" | jq -r '.objects[]?.name | select(test("^[a-zA-Z0-9]+_.*_health\\.json$"))')
           
           if [ -z "$FILENAMES" ]; then
-            echo "No files found matching the health pattern."
-            exit 0
+            echo "No matching health files found."
+          else
+            for FILE in $FILENAMES; do
+              if [ ! -f "data_folder/${FILE}" ]; then
+                  echo "Downloading $FILE..."
+                  curl -sL --fail "${LIST_URL}${FILE}" -o "data_folder/${FILE}" || echo "Skipped $FILE"
+              fi
+            done
           fi
 
-          for FILE in $FILENAMES; do
-            echo "Downloading $FILE..."
-            # Using -k (insecure) just in case there is a CA cert mismatch on the runner
-            curl -f -sSL -k "${LIST_URL}${FILE}" -o "data_folder/${FILE}" || echo "Failed: $FILE"
-          done
+          # 4. Cleanup files older than 15 days
+          find data_folder -name "*_health.json" -type f -mtime +15 -delete
 
-          # 3. Build consolidated dashboard_data.json
+          # 5. Build dashboard_data.json
           echo "Building dashboard_data.json..."
           echo "[" > dashboard_data.json
-          FIRST=true
+          
+          # Logic: Sort files by timestamp and keep only the latest for each host/group
           LATEST_FILES=$(ls data_folder/*_health.json 2>/dev/null | xargs -n 1 basename 2>/dev/null | sort -r | awk -F_ '!visited[$1$2$3]++') || true
           
+          FIRST=true
           for F in $LATEST_FILES; do
             if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> dashboard_data.json; fi
             cat "data_folder/$F" | jq -c '.[]' >> dashboard_data.json
           done
           echo "]" >> dashboard_data.json
 
+          # CRITICAL STEP: Move the JSON to the website folder so WASM can find it
+          cp dashboard_data.json docs/dashboard_data.json
+
       - name: Commit and Push
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data_folder/ dashboard_data.json
-          git commit -m "Sync health data: $(date)" || echo "No changes"
-          git push
+          
+          # Add the raw data, the root JSON, and the website's copy of the JSON
+          git add data_folder/ dashboard_data.json docs/dashboard_data.json
+          
+          if git diff --cached --quiet; then
+            echo "No changes to sync."
+          else
+            git commit -m "Sync & Build: $(date)"
+            git push
+          fi

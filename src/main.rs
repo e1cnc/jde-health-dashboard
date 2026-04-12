@@ -19,7 +19,7 @@ fn App() -> impl IntoView {
     view! {
         <div class="container" style="padding: 20px; font-family: sans-serif; max-width: 1200px; margin: auto;">
             <h2 style="color: #004488; border-bottom: 2px solid #004488; padding-bottom: 10px;">
-                "JDE Global Health (WASM)"
+                "JDE Global Health Dashboard"
             </h2>
             
             <table style="width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">

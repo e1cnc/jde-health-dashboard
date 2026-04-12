@@ -1,15 +1,18 @@
 [build]
-# The entry point for the build
+# The entry point for the application
 target = "index.html"
-# The folder where GitHub Pages looks for files
+
+# The output directory GitHub Pages is configured to use
 dist = "docs"
-# CRITICAL: Ensures internal paths work on e1cnc.github.io/jde-health-dashboard/
+
+# CRITICAL: This allows the WASM to load correctly from a subfolder
+# Format: /repository-name/
 public_url = "/jde-health-dashboard/"
 
 [clean]
-# Cleans the docs folder before every build to prevent "ghost" files
-dist = true
+# Fixes the 'invalid type: boolean' error from previous versions
+action = "clean"
 
 [serve]
-# For local testing at http://localhost:8080
+# Local dev server settings
 port = 8080

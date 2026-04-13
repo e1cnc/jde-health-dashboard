@@ -23,12 +23,14 @@ fn App() -> impl IntoView {
         <div style="padding: 20px; font-family: sans-serif; background-color: #f0f4f8; min-height: 100vh;">
             <div style="max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
                 
-                <h2 style="color: #004488; margin-bottom: 20px;">"JDE Global Health Monitor"</h2>
+                <h2 style="color: #004488; margin-bottom: 20px;">"JDE Global Health Monitor Dashboard"</h2>
 
-                // Breadcrumb / Back Button
                 {move || selected_customer.get().map(|name| view! {
                     <button 
-                        on:click=move |_| set_selected_customer.set(None)
+                        on:click=move |_| {
+                            set_selected_customer.set(None);
+                            set_search_query.set(String::new()); // Reset search on back
+                        }
                         style="background: #004488; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px;"
                     >
                         "← Back to All Customers"
@@ -48,13 +50,10 @@ fn App() -> impl IntoView {
                     {move || health_data.get().map(|data| match data {
                         Ok(instances) => {
                             let query = search_query.get().to_lowercase();
-                            
                             if let Some(customer) = selected_customer.get() {
-                                // DETAIL VIEW: Show instances for the selected customer
                                 render_detail_view(instances, customer, query)
                             } else {
-                                // SUMMARY VIEW: Show list of unique customers
-                                render_summary_view(instances, query, set_selected_customer)
+                                render_summary_view(instances, query, set_selected_customer, set_search_query)
                             }
                         },
                         Err(e) => view! { <p style="color: red;">"Error: " {e}</p> }.into_view()
@@ -65,31 +64,57 @@ fn App() -> impl IntoView {
     }
 }
 
-// Renders the high-level list of unique customers
-fn render_summary_view(instances: Vec<HealthInstance>, query: String, set_selected: WriteSignal<Option<String>>) -> View {
-    let mut customers = HashMap::new();
+fn render_summary_view(
+    instances: Vec<HealthInstance>, 
+    query: String, 
+    set_selected: WriteSignal<Option<String>>,
+    set_search: WriteSignal<String>
+) -> View {
+    // Map of Customer Name -> (Total Count, Has Critical Error)
+    let mut customers: HashMap<String, (i32, bool)> = HashMap::new();
+    
     for inst in instances {
         let name = inst.customer_name.clone().unwrap_or_else(|| "Unknown".into());
-        if name.to_lowercase().contains(&query) {
-            *customers.entry(name).or_insert(0) += 1;
-        }
+        let status = inst.status.as_deref().unwrap_or("UNKNOWN").to_uppercase();
+        let is_critical = status == "STOPPED" || status == "FAILED";
+
+        let entry = customers.entry(name).or_insert((0, false));
+        entry.0 += 1;
+        if is_critical { entry.1 = true; }
     }
 
-    let mut sorted_customers: Vec<_> = customers.into_iter().collect();
+    let mut sorted_customers: Vec<_> = customers.into_iter()
+        .filter(|(name, _)| name.to_lowercase().contains(&query))
+        .collect();
     sorted_customers.sort_by(|a, b| a.0.cmp(&b.0));
 
     view! {
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
-            {sorted_customers.into_iter().map(|(name, count)| {
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+            {sorted_customers.into_iter().map(|(name, (count, has_error))| {
                 let display_name = name.clone();
+                let bg_color = if has_error { "#fff5f5" } else { "#fafafa" };
+                let border_color = if has_error { "#feb2b2" } else { "#ddd" };
+                let status_text = if has_error { "● CRITICAL ISSUES" } else { "● Healthy" };
+                let status_color = if has_error { "#c53030" } else { "#38a169" };
+
                 view! {
                     <div 
-                        on:click=move |_| set_selected.set(Some(name.clone()))
-                        style="padding: 20px; border: 1px solid #ddd; border-radius: 10px; cursor: pointer; background: #fafafa; transition: transform 0.2s;"
-                        on:mouseover=move |e| { let _ = e; } // Add hover effects in real CSS
+                        on:click=move |_| {
+                            set_selected.set(Some(name.clone()));
+                            set_search.set(String::new()); // Reset search when entering
+                        }
+                        style=format!(
+                            "padding: 20px; border: 2px solid {}; border-radius: 10px; cursor: pointer; background: {}; transition: transform 0.1s;",
+                            border_color, bg_color
+                        )
                     >
                         <h4 style="margin: 0; color: #004488;">{display_name}</h4>
-                        <p style="margin: 5px 0 0 0; font-size: 0.9em; color: #666;">{count} " Instances"</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                            <span style="font-size: 0.85em; color: #666;">{count} " Instances"</span>
+                            <span style=format!("font-size: 0.75em; font-weight: bold; color: {};", status_color)>
+                                {status_text}
+                            </span>
+                        </div>
                     </div>
                 }
             }).collect_view()}
@@ -97,7 +122,6 @@ fn render_summary_view(instances: Vec<HealthInstance>, query: String, set_select
     }.into_view()
 }
 
-// Renders the detailed table for a specific customer
 fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: String) -> View {
     let filtered: Vec<_> = instances.into_iter()
         .filter(|inst| inst.customer_name.as_ref() == Some(&customer))
@@ -124,7 +148,7 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
                             <td style="padding: 12px;">{inst.host_name.clone().unwrap_or_default()}</td>
                             <td style="padding: 12px;">{inst.group.clone().unwrap_or_default()}</td>
                             <td style="padding: 12px;">
-                                <span style=format!("padding: 4px 10px; border-radius: 20px; font-weight: bold; background: {}; color: {};", bg, fg)>
+                                <span style=format!("padding: 4px 10px; border-radius: 20px; font-weight: bold; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
                                     {status_str}
                                 </span>
                             </td>
@@ -140,7 +164,12 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
     let url = format!("https://e1cnc.github.io/jde-health-dashboard/dashboard_data.json?v={}", js_sys::Math::random()); 
     let resp = Request::get(&url).send().await.map_err(|e| e.to_string())?;
-    resp.json::<Vec<HealthInstance>>().await.map_err(|e| e.to_string())
+    
+    // Safety check for empty or null data
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if text.is_empty() || text == "null" { return Ok(vec![]); }
+    
+    serde_json::from_str::<Vec<HealthInstance>>(&text).map_err(|e| format!("JSON Parse Error: {}", e))
 }
 
 fn main() { mount_to_body(|| view! { <App /> }) }

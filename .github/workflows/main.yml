@@ -22,16 +22,16 @@ jobs:
           mkdir -p data_folder docs
           LIST_URL="https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
           
-          # Get file list
+          # Fetch all health file names
           FILES=$(curl -s "$LIST_URL" | jq -r '.objects[].name | select(contains("_health.json"))')
           
           if [ -z "$FILES" ]; then
             echo "[]" > docs/dashboard_data.json
           else
+            # Download and merge
             for F in $FILES; do
               curl -s "${LIST_URL}${F}" -o "data_folder/$F"
             done
-            # Merge JSON arrays
             jq -s 'add' data_folder/*_health.json > docs/dashboard_data.json
           fi
 
@@ -41,14 +41,14 @@ jobs:
           git config --global user.email "actions@github.com"
           git add docs/dashboard_data.json
           
-          # Clean sync logic
+          # Clean sync
           git stash
           git pull --rebase origin main
-          git stash pop || echo "Nothing to pop"
+          git stash pop || echo "No changes to merge"
           
           git add docs/dashboard_data.json
           if git diff --cached --quiet; then
-            echo "No changes to sync."
+            echo "No changes."
           else
             git commit -m "Automated Health Sync: $(date)"
             git push origin main

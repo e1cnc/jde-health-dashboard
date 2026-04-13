@@ -406,10 +406,26 @@
   {
     "customer_name": "ENEX",
     "host_name": "vmjdenex050",
+    "server_group": "dev",
+    "instance_name": "CONNECTION_ERROR",
+    "status": "FAILED",
+    "timestamp": "2026-04-13T05:56:31-04:00"
+  },
+  {
+    "customer_name": "ENEX",
+    "host_name": "vmjdenex050",
     "server_group": "psn",
     "instance_name": "CONNECTION_ERROR",
     "status": "FAILED",
     "timestamp": "2026-04-13T05:47:48-04:00"
+  },
+  {
+    "customer_name": "ENEX",
+    "host_name": "vmjdenex050",
+    "server_group": "psn",
+    "instance_name": "CONNECTION_ERROR",
+    "status": "FAILED",
+    "timestamp": "2026-04-13T05:57:31-04:00"
   },
   {
     "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
@@ -729,5 +745,104 @@
     "customer_name": "LSJJOLDTR",
     "host_name": "vmjdlsjj29",
     "server_group": "ps"
+  },
+  {
+    "details": "Login: Failed; Form Service App: Failed; Form Service UBE: Failed; JWT Trust Login: Failed; Basic Auth: Failed; ",
+    "group_name": "NTNUDEV",
+    "instance_name": "vmjdntnu006_AIS_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:18:15.118482850+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUDEV"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed; ",
+    "group_name": "NTNUDEV",
+    "instance_name": "NTNUJDEDEV_ENT_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:18:15.118487449+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUDEV"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "NTNUDEV",
+    "instance_name": "vmjdntnu007_HTML_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:18:15.118490154+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUDEV"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Failed; Basic Auth: Failed; ",
+    "group_name": "NTNUPS",
+    "instance_name": "vmjdntnu003_AIS_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:16:02.319843349+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
+  },
+  {
+    "details": "",
+    "group_name": "NTNUPS",
+    "instance_name": "NTNUJDEPSN_ENT_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:16:02.319847807+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "NTNUPS",
+    "instance_name": "vmjdntnu004_HTML_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:16:02.319850793+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Failed; Basic Auth: Failed; ",
+    "group_name": "NTNUPS",
+    "instance_name": "vmjdntnu003_AIS_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:17:52.431366815+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
+  },
+  {
+    "details": "",
+    "group_name": "NTNUPS",
+    "instance_name": "NTNUJDEPSN_ENT_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:17:52.431371323+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+    "group_name": "NTNUPS",
+    "instance_name": "vmjdntnu004_HTML_01",
+    "server_alias": "NTNUSA_vmjdntnu001",
+    "status": "RUNNING",
+    "timestamp": "2026-04-13T10:17:52.431374779+00:00",
+    "customer_name": "NTNUSA",
+    "host_name": "vmjdntnu001",
+    "server_group": "NTNUPS"
   }
 ]

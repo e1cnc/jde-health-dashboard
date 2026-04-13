@@ -24,7 +24,6 @@ fn App() -> impl IntoView {
         |_| async move { fetch_health_data().await }
     );
 
-    // Auto-refresh the UI every 5 minutes
     set_interval(
         move || { set_refresh_count.update(|n| *n += 1); },
         Duration::from_millis(300_000),
@@ -44,7 +43,7 @@ fn App() -> impl IntoView {
                     </div>
                 </div>
 
-                <Transition fallback=|_| ()>
+                <Transition fallback=|| ()>
                     {move || health_data.get().map(|data| if let Ok(insts) = data {
                         let mut unique_map = HashSet::new();
                         let mut critical_count = 0;
@@ -94,7 +93,7 @@ fn App() -> impl IntoView {
                     prop:value=search_query
                 />
 
-                <Transition fallback=move || view! { <div style="text-align: center; padding: 40px;">"Loading data..."</div> }>
+                <Transition fallback=|| view! { <div style="text-align: center; padding: 40px;">"Loading data..."</div> }>
                     {move || health_data.get().map(|data| match data {
                         Ok(instances) => {
                             let query = search_query.get().to_lowercase();
@@ -194,7 +193,10 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
         latest_instances.insert(key, inst);
     }
     let filtered: Vec<_> = latest_instances.into_values()
-        .filter(|inst| inst.group.as_deref().unwrap_or("").to_lowercase().contains(&query))
+        .filter(|inst| {
+            let json = serde_json::to_string(&inst).unwrap_or_default().to_lowercase();
+            json.contains(&query)
+        })
         .collect();
 
     view! {
@@ -202,7 +204,7 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
             <table style="width: 100%; border-collapse: collapse; background: white;">
                 <thead>
                     <tr style="background-color: #004488; color: white; text-align: left;">
-                        <th style="padding: 16px;">"Raw JSON Data"</th>
+                        <th style="padding: 16px;">"Raw JSON Resource Data"</th>
                         <th style="padding: 16px;">"Service Instance"</th>
                         <th style="padding: 16px;">"Status"</th>
                         <th style="padding: 16px;">"Last Update"</th>
@@ -219,12 +221,11 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
                                        else if is_err { ("#fff5f5", "#742a2a") }
                                        else { ("#edf2f7", "#4a5568") };
 
-                        // Serialize back to JSON for the "Raw Data" column
                         let raw_json = serde_json::to_string(&inst).unwrap_or_else(|_| "Error".into());
 
                         view! {
                             <tr style="border-bottom: 1px solid #edf2f7;">
-                                <td style="padding: 16px; font-size: 0.8em; color: #444; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace;" title=raw_json.clone()>
+                                <td style="padding: 16px; font-size: 0.85em; color: #444; font-family: monospace; word-break: break-all; max-width: 600px;">
                                     {raw_json}
                                 </td>
                                 <td style="padding: 16px; color: #4a5568;">{inst.group.clone().unwrap_or_default()}</td>

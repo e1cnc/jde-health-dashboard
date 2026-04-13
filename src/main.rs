@@ -4,63 +4,86 @@ use gloo_net::http::Request;
 use std::collections::BTreeMap;
 use gloo_timers::callback::Interval;
 
+// --- Data Models ---
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
-    pub customer_name: Option<String>,
-    pub group_name: Option<String>,
-    #[serde(rename = "instanceName")]
-    pub instance_name: Option<String>,
     #[serde(rename = "instanceStatus")]
     pub instance_status: Option<String>,
     #[serde(rename = "healthStatus")]
     pub health_status: Option<String>,
-    #[serde(rename = "message")]
-    pub message: Option<String>,
-    #[serde(rename = "instanceHealthChecks")]
-    pub checks: Option<serde_json::Value>,
 }
 
-// Helper to extract Meta from Filename: "CUSTOMER_GROUP_latest.json"
-fn parse_filename(name: &str) -> Option<(String, String)> {
-    let parts: Vec<&str> = name.split('_').collect();
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct GroupStatus {
+    pub name: String,
+    pub total: usize,
+    pub ok: usize,
+    pub err: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct CustomerSummary {
+    pub name: String,
+    pub groups: BTreeMap<String, GroupStatus>,
+}
+
+// --- Helper Functions ---
+
+// Extracts CUSTOMER and GROUP from filename patterns like:
+// "CUSTOMERNAME_SERVERGROUP_latest.json"
+fn parse_meta(filename: &str) -> Option<(String, String)> {
+    let parts: Vec<&str> = filename.split('_').collect();
     if parts.len() >= 2 {
-        Some((parts[0].to_string(), parts[1].to_string()))
+        Some((parts[0].to_string(), parts[1].to_uppercase()))
     } else {
         None
     }
 }
 
-#[component]
-fn App() -> impl IntoView {
-    let (filter, set_filter) = create_signal(String::new());
-    let (refresh_count, set_refresh_count) = create_signal(0);
-    let (selected_instance, set_selected_instance) = create_signal(None::<String>);
+async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
+    let mut customers: BTreeMap<String, CustomerSummary> = BTreeMap::new();
     
-    let health_data = create_resource(move || refresh_count.get(), |_| async move {
-        let mut all_data = Vec::new();
-        // Use your Bucket-level PAR URL here
-        let bucket_url = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
+    // Using your specific Ashburn Region Bucket PAR URL
+    let base_url = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
-        // 1. List all objects in the bucket
-        if let Ok(resp) = Request::get(bucket_url).send().await {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                if let Some(objects) = json.get("objects").and_then(|o| o.as_array()) {
-                    for obj in objects {
-                        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                            // Only process files ending in _latest.json
-                            if name.ends_with("_latest.json") {
-                                if let Some((cust, grp)) = parse_filename(name) {
-                                    let file_url = format!("{}{}", bucket_url, name);
-                                    
-                                    // 2. Fetch the actual health data for this file
-                                    if let Ok(file_resp) = Request::get(&file_url).send().await {
-                                        if let Ok(mut instances) = file_resp.json::<Vec<HealthInstance>>().await {
-                                            for i in instances.iter_mut() {
-                                                i.customer_name = Some(cust.clone());
-                                                i.group_name = Some(grp.clone().to_uppercase());
+    // 1. Fetch the list of objects in the bucket
+    if let Ok(resp) = Request::get(base_url).send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(objects) = json.get("objects").and_then(|o| o.as_array()) {
+                for obj in objects {
+                    if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+                        // 2. Only process the "latest" status files
+                        if name.ends_with("_latest.json") {
+                            if let Some((cust_name, grp_name)) = parse_meta(name) {
+                                let file_url = format!("{}{}", base_url, name);
+                                
+                                // 3. Fetch the content of each specific JSON file
+                                if let Ok(file_resp) = Request::get(&file_url).send().await {
+                                    if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
+                                        let cust = customers.entry(cust_name.clone()).or_insert(CustomerSummary {
+                                            name: cust_name,
+                                            groups: BTreeMap::new(),
+                                        });
+
+                                        let mut ok = 0;
+                                        let mut err = 0;
+                                        for inst in &instances {
+                                            let status = inst.instance_status.as_deref().unwrap_or("");
+                                            let health = inst.health_status.as_deref().unwrap_or("");
+                                            if status == "RUNNING" || health == "Passed" {
+                                                ok += 1;
+                                            } else {
+                                                err += 1;
                                             }
-                                            all_data.append(&mut instances);
                                         }
+
+                                        cust.groups.insert(grp_name.clone(), GroupStatus {
+                                            name: grp_name,
+                                            total: instances.len(),
+                                            ok,
+                                            err,
+                                        });
                                     }
                                 }
                             }
@@ -69,107 +92,91 @@ fn App() -> impl IntoView {
                 }
             }
         }
-        all_data
-    });
-
-    core::mem::forget(Interval::new(60_000, move || set_refresh_count.update(|n| *n += 1)));
-
-    view! {
-        <div style="padding: 30px; background: #f1f5f9; min-height: 100vh; font-family: sans-serif;">
-            
-            // SUMMARY CARDS
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
-                {move || {
-                    let data = health_data.get().unwrap_or_default();
-                    let healthy = data.iter().filter(|i| 
-                        i.health_status.as_deref() == Some("Passed") || 
-                        i.instance_status.as_deref() == Some("RUNNING")
-                    ).count();
-                    let critical = data.iter().filter(|i| i.instance_status.as_deref() == Some("STOPPED")).count();
-                    view! {
-                        <StatusCard title="HEALTHY" count=healthy color="#22c55e" icon="✔" />
-                        <StatusCard title="CRITICAL" count=critical color="#ef4444" icon="🪲" />
-                    }
-                }}
-            </div>
-
-            <input type="text" placeholder="Search Customer, Environment, or Instance..." 
-                on:input=move |ev| set_filter.set(event_target_value(&ev))
-                style="width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 25px;" />
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 25px;">
-                <Transition fallback=|| view! { <p>"Discovering instances in OCI Bucket..."</p> }>
-                    {move || {
-                        let f = filter.get().to_lowercase();
-                        let mut groups: BTreeMap<String, Vec<HealthInstance>> = BTreeMap::new();
-                        let current_data = health_data.get().unwrap_or_default();
-
-                        for i in current_data {
-                            let cust = i.customer_name.clone().unwrap_or_default();
-                            let env = i.group_name.clone().unwrap_or_default();
-                            if cust.to_lowercase().contains(&f) || env.to_lowercase().contains(&f) {
-                                let key = format!("{} | {}", cust, env);
-                                groups.entry(key).or_default().push(i);
-                            }
-                        }
-
-                        groups.into_iter().map(|(title, instances)| {
-                            view! {
-                                <div style="background: white; border-radius: 15px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                                    <div style="background: #1e293b; color: white; padding: 15px 20px; font-weight: bold;">{title}</div>
-                                    <div style="padding: 10px;">
-                                        {instances.into_iter().map(|inst| {
-                                            let name = inst.instance_name.clone().unwrap_or_default();
-                                            let name_id = name.clone();
-                                            let status = inst.instance_status.clone().unwrap_or_else(|| inst.health_status.clone().unwrap_or_default());
-                                            let is_healthy = status == "RUNNING" || status == "Passed";
-                                            
-                                            // Extract check details
-                                            let mut details = inst.message.clone().unwrap_or_default();
-                                            if let Some(checks) = inst.checks.as_ref().and_then(|v| v.as_array()) {
-                                                for c in checks {
-                                                    let cn = c.get("HealthCheckName").and_then(|v| v.as_str()).unwrap_or("");
-                                                    let cr = c.get("Result").and_then(|v| v.as_str()).unwrap_or("");
-                                                    details.push_str(&format!("{}: {}; ", cn, cr));
-                                                }
-                                            }
-
-                                            view! {
-                                                <div on:click=move |_| set_selected_instance.update(|s| *s = if *s == Some(name_id.clone()) { None } else { Some(name_id.clone()) }) 
-                                                     style="cursor: pointer; padding: 12px; border-bottom: 1px solid #f1f5f9;">
-                                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                        <div style="font-weight: 600;">{name.clone()}</div>
-                                                        <div style=format!("color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7em; font-weight: bold; background: {};", if is_healthy { "#22c55e" } else { "#ef4444" })>
-                                                            {status}
-                                                        </div>
-                                                    </div>
-                                                    {move || (selected_instance.get() == Some(name.clone())).then(|| {
-                                                        view! { <div style="font-size: 0.75em; color: #475569; margin-top: 8px; line-height: 1.5; padding: 8px; background: #f8fafc;">{details.clone()}</div> }
-                                                    })}
-                                                </div>
-                                            }
-                                        }).collect_view()}
-                                    </div>
-                                </div>
-                            }
-                        }).collect_view()
-                    }}
-                </Transition>
-            </div>
-        </div>
     }
+    customers
 }
+
+// --- UI Components ---
 
 #[component]
-fn StatusCard(title: &'static str, count: usize, color: &'static str, icon: &'static str) -> impl IntoView {
+fn App() -> impl IntoView {
+    let (refresh_count, set_refresh_count) = create_signal(0);
+    
+    // Resource that fetches data whenever refresh_count changes
+    let health_data = create_resource(move || refresh_count.get(), |_| async move {
+        fetch_all_health_data().await
+    });
+
+    // Setup an interval to auto-refresh the UI every 60 seconds
+    core::mem::forget(Interval::new(60_000, move || {
+        set_refresh_count.update(|n| *n += 1);
+    }));
+
     view! {
-        <div style=format!("background: {}; color: white; padding: 25px; border-radius: 15px;", color)>
-            <div style="display: flex; justify-content: space-between; font-weight: bold; opacity: 0.8;">
-                <span>{title}</span><span>{icon}</span>
+        <div style="padding: 40px; background: #f8fafc; min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <div style="max-width: 1400px; margin: auto;">
+                <h1 style="color: #1e293b; margin-bottom: 30px; font-weight: 800; letter-spacing: -1px;">
+                    "JDE Global Health Dashboard"
+                </h1>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 25px;">
+                    <Transition fallback=|| view! { <p style="color: #64748b;">"Syncing with Oracle Cloud Infrastructure..."</p> }>
+                        {move || {
+                            health_data.get().unwrap_or_default().into_iter().map(|(_, cust)| {
+                                let total_ok: usize = cust.groups.values().map(|g| g.ok).sum();
+                                let total_err: usize = cust.groups.values().map(|g| g.err).sum();
+                                let total_inst: usize = cust.groups.values().map(|g| g.total).sum();
+                                
+                                // Card color: Red if any instance is down, Green if all perfect
+                                let status_color = if total_inst == 0 { "#94a3b8" } 
+                                                 else if total_err > 0 { "#ef4444" } 
+                                                 else { "#22c55e" };
+
+                                let health_pct = if total_inst > 0 { 
+                                    (total_ok as f32 / total_inst as f32 * 100.0) as i32 
+                                } else { 0 };
+
+                                view! {
+                                    <div style=format!("border-left: 6px solid {}; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);", status_color)>
+                                        <h2 style="margin: 0 0 15px 0; color: #1e293b; text-transform: uppercase; font-size: 1.4em;">{cust.name}</h2>
+                                        
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 25px;">
+                                            {cust.groups.values().cloned().map(|g| {
+                                                view! {
+                                                    <span style="background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 15px; font-weight: 700; font-size: 0.75em; border: 1px solid #e2e8f0;">
+                                                        {format!("{}: {}", g.name, g.total)}
+                                                    </span>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+
+                                        <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+                                            <div style="font-size: 0.85em; font-weight: 600; display: flex; gap: 12px;">
+                                                <span style="color: #22c55e;">{format!("● {} OK", total_ok)}</span>
+                                                <span style="color: #ef4444;">{format!("● {} ERR", total_err)}</span>
+                                                <span style="color: #94a3b8;">"● 0 UNK"</span>
+                                            </div>
+                                            
+                                            <div style=format!("width: 60px; height: 60px; border-radius: 50%; border: 5px solid #f1f5f9; border-top-color: {}; display: flex; align-items: center; justify-content: center; font-size: 0.9em; font-weight: 800; color: #1e293b;", status_color)>
+                                                {format!("{}%", health_pct)}
+                                            </div>
+                                        </div>
+                                        
+                                        <button style="margin-top: 20px; width: 100%; padding: 12px; border: none; background: #1e293b; color: white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9em;"
+                                                on:click=|_| { /* Future drill-down logic */ }>
+                                            "VIEW DETAILS"
+                                        </button>
+                                    </div>
+                                }
+                            }).collect_view()
+                        }}
+                    </Transition>
+                </div>
             </div>
-            <h1 style="margin: 10px 0 0 0; font-size: 3em;">{count}</h1>
         </div>
     }
 }
 
-fn main() { mount_to_body(|| view! { <App /> }) }
+fn main() { 
+    mount_to_body(|| view! { <App /> }) 
+}

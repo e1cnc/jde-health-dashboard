@@ -18,7 +18,9 @@ pub struct HealthInstance {
     #[serde(rename = "healthStatus")]
     pub health_status: Option<String>,
     #[serde(rename = "message")]
-    pub details: Option<String>,
+    pub message: Option<String>,
+    #[serde(rename = "instanceHealthChecks")]
+    pub checks: Option<serde_json::Value>,
 }
 
 #[component]
@@ -30,8 +32,7 @@ fn App() -> impl IntoView {
     let health_data = create_resource(move || refresh_count.get(), |_| async move {
         let mut all = Vec::new();
         let targets = vec![("LSJJNEWTR", "dv"), ("LSJJNEWTR", "py")];
-        
-        // Update this with your actual PAR URL
+        // Ensure this key is correct for your OCI Ashburn region
         let par_base = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
         for (cust, group) in targets {
@@ -60,18 +61,18 @@ fn App() -> impl IntoView {
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
                 {move || {
                     let data = health_data.get().unwrap_or_default();
-                    let healthy = data.iter().filter(|i| i.instance_status.as_deref() == Some("RUNNING")).count();
-                    let critical = data.iter().filter(|i| i.instance_status.as_deref() == Some("STOPPED")).count();
+                    let running = data.iter().filter(|i| i.instance_status.as_deref() == Some("RUNNING")).count();
+                    let stopped = data.iter().filter(|i| i.instance_status.as_deref() == Some("STOPPED")).count();
                     
                     view! {
-                        <StatusCard title="RUNNING" count=healthy color="#22c55e" icon="✔" />
-                        <StatusCard title="STOPPED" count=critical color="#ef4444" icon="🪲" />
+                        <StatusCard title="RUNNING" count=running color="#22c55e" icon="✔" />
+                        <StatusCard title="STOPPED" count=stopped color="#ef4444" icon="🪲" />
                     }
                 }}
             </div>
 
             <input type="text" 
-                placeholder="Search Environment (dv, py)..." 
+                placeholder="Filter by environment or instance..." 
                 on:input=move |ev| set_filter.set(event_target_value(&ev))
                 style="width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 25px;" />
 
@@ -85,39 +86,38 @@ fn App() -> impl IntoView {
                         for i in current_data {
                             let cust = i.customer_name.clone().unwrap_or_default();
                             let env = i.server_group.clone().unwrap_or_default().to_uppercase();
-                            if cust.to_lowercase().contains(&f) || env.to_lowercase().contains(&f) {
+                            let name = i.instance_name.clone().unwrap_or_default().to_lowercase();
+                            if cust.to_lowercase().contains(&f) || env.to_lowercase().contains(&f) || name.contains(&f) {
                                 let key = format!("{} | {}", cust, env);
                                 groups.entry(key).or_default().push(i);
                             }
                         }
 
                         groups.into_iter().map(|(title, instances)| {
-                            let is_env_critical = instances.iter().any(|i| i.instance_status.as_deref() == Some("STOPPED"));
+                            let is_critical = instances.iter().any(|i| i.instance_status.as_deref() == Some("STOPPED"));
                             
                             view! {
                                 <div style="background: white; border-radius: 15px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
                                     <div style=format!(
                                         "background: {}; color: white; padding: 15px 20px; font-weight: bold; display: flex; justify-content: space-between;", 
-                                        if is_env_critical { "#ef4444" } else { "#1e293b" }
+                                        if is_critical { "#ef4444" } else { "#1e293b" }
                                     )>
                                         <span>{title}</span>
-                                        <span style="font-size: 0.8em;">{if is_env_critical { "CRITICAL" } else { "HEALTHY" }}</span>
+                                        <span style="font-size: 0.8em;">{if is_critical { "CRITICAL" } else { "HEALTHY" }}</span>
                                     </div>
                                     <div style="padding: 10px;">
                                         {instances.into_iter().map(|inst| {
-                                            // CLONE variables here to avoid ownership issues in closures
                                             let name = inst.instance_name.clone().unwrap_or_default();
                                             let name_for_click = name.clone();
-                                            let name_for_visibility = name.clone();
+                                            let name_for_view = name.clone();
                                             let status = inst.instance_status.clone().unwrap_or_default();
-                                            let msg = inst.details.clone().unwrap_or_default();
                                             let is_stopped = status == "STOPPED";
+                                            let msg = inst.message.clone().unwrap_or_default();
                                             
                                             view! {
                                                 <div 
                                                     on:click=move |_| {
-                                                        let current = selected_instance.get();
-                                                        if current == Some(name_for_click.clone()) {
+                                                        if selected_instance.get() == Some(name_for_click.clone()) {
                                                             set_selected_instance.set(None);
                                                         } else {
                                                             set_selected_instance.set(Some(name_for_click.clone()));
@@ -126,7 +126,7 @@ fn App() -> impl IntoView {
                                                     style="cursor: pointer; padding: 12px; border-bottom: 1px solid #f1f5f9;"
                                                 >
                                                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                        <div style="font-weight: 600; color: #334155;">{name}</div>
+                                                        <div style="font-weight: 600;">{name}</div>
                                                         <div style=format!(
                                                             "padding: 4px 10px; border-radius: 20px; color: white; font-size: 0.7em; font-weight: bold; background: {};", 
                                                             if is_stopped { "#ef4444" } else { "#22c55e" }
@@ -135,12 +135,15 @@ fn App() -> impl IntoView {
                                                         </div>
                                                     </div>
                                                     
-                                                    {move || (selected_instance.get() == Some(name_for_visibility.clone())).then(|| {
-                                                        // Clone the message again inside the conditional view
-                                                        let message_text = msg.clone();
+                                                    {move || (selected_instance.get() == Some(name_for_view.clone())).then(|| {
+                                                        let display_text = msg.clone();
                                                         view! {
                                                             <div style="margin-top: 10px; padding: 10px; background: #fff7ed; border-left: 4px solid #f97316; font-size: 0.8em; color: #7c2d12;">
-                                                                <strong>"Details: "</strong> {message_text}
+                                                                {if display_text.is_empty() { 
+                                                                    "System checks passed successfully.".to_string() 
+                                                                } else { 
+                                                                    display_text 
+                                                                }}
                                                             </div>
                                                         }
                                                     })}
@@ -162,7 +165,7 @@ fn App() -> impl IntoView {
 fn StatusCard(title: &'static str, count: usize, color: &'static str, icon: &'static str) -> impl IntoView {
     view! {
         <div style=format!("background: {}; color: white; padding: 25px; border-radius: 15px;", color)>
-            <div style="display: flex; justify-content: space-between; font-weight: bold; opacity: 0.9;">
+            <div style="display: flex; justify-content: space-between; font-weight: bold; opacity: 0.8;">
                 <span>{title}</span><span>{icon}</span>
             </div>
             <h1 style="margin: 10px 0 0 0; font-size: 3em;">{count}</h1>

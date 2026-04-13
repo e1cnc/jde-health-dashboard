@@ -65,20 +65,20 @@ fn App() -> impl IntoView {
                                             customer.contains(&q) || group.contains(&q)
                                         })
                                         .map(|inst| {
-                                            let status_str = inst.status.as_deref().unwrap_or("UNKNOWN");
+                                            let status_str = inst.status.clone().unwrap_or_else(|| "UNKNOWN".to_string());
                                             let is_ok = status_str == "RUNNING" || status_str == "Passed";
                                             let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } else { ("#fff5f5", "#742a2a") };
                                             view! {
                                                 <tr style="border-bottom: 1px solid #edf2f7;">
-                                                    <td style="padding: 12px;"><b>{inst.customer_name.unwrap_or_default()}</b></td>
-                                                    <td style="padding: 12px;">{inst.host_name.unwrap_or_default()}</td>
-                                                    <td style="padding: 12px;">{inst.group.unwrap_or_default()}</td>
+                                                    <td style="padding: 12px;"><b>{inst.customer_name.clone().unwrap_or_default()}</b></td>
+                                                    <td style="padding: 12px;">{inst.host_name.clone().unwrap_or_default()}</td>
+                                                    <td style="padding: 12px;">{inst.group.clone().unwrap_or_default()}</td>
                                                     <td style="padding: 12px;">
                                                         <span style=format!("padding: 4px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
                                                             {status_str}
                                                         </span>
                                                     </td>
-                                                    <td style="padding: 12px; font-size: 0.8em; color: #4a5568;">{inst.last_sync.unwrap_or_default()}</td>
+                                                    <td style="padding: 12px; font-size: 0.8em; color: #4a5568;">{inst.last_sync.clone().unwrap_or_default()}</td>
                                                 </tr>
                                             }
                                         }).collect_view()
@@ -95,7 +95,6 @@ fn App() -> impl IntoView {
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
     let cache_buster = js_sys::Math::random();
-    // Use the explicit path to your JSON file hosted on GitHub Pages
     let url = format!("https://e1cnc.github.io/jde-health-dashboard/dashboard_data.json?v={}", cache_buster); 
 
     let resp = Request::get(&url).send().await.map_err(|e| e.to_string())?;

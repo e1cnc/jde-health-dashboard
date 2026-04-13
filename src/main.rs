@@ -8,6 +8,8 @@ use gloo_timers::callback::Interval;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
+    #[serde(rename = "instanceName")]
+    pub instance_name: Option<String>,
     #[serde(rename = "instanceStatus")]
     pub instance_status: Option<String>,
     #[serde(rename = "healthStatus")]
@@ -28,10 +30,15 @@ pub struct CustomerSummary {
     pub groups: BTreeMap<String, GroupStatus>,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Filter {
+    All,
+    Failed,
+    Running,
+}
+
 // --- Helper Functions ---
 
-// Extracts CUSTOMER and GROUP from filename patterns like:
-// "CUSTOMERNAME_SERVERGROUP_latest.json"
 fn parse_meta(filename: &str) -> Option<(String, String)> {
     let parts: Vec<&str> = filename.split('_').collect();
     if parts.len() >= 2 {
@@ -43,22 +50,16 @@ fn parse_meta(filename: &str) -> Option<(String, String)> {
 
 async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
     let mut customers: BTreeMap<String, CustomerSummary> = BTreeMap::new();
-    
-    // Using your specific Ashburn Region Bucket PAR URL
     let base_url = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
-    // 1. Fetch the list of objects in the bucket
     if let Ok(resp) = Request::get(base_url).send().await {
         if let Ok(json) = resp.json::<serde_json::Value>().await {
             if let Some(objects) = json.get("objects").and_then(|o| o.as_array()) {
                 for obj in objects {
                     if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                        // 2. Only process the "latest" status files
-                        if name.ends_with("_latest.json") {
+                        if name.contains("_health.json") || name.ends_with("_latest.json") {
                             if let Some((cust_name, grp_name)) = parse_meta(name) {
                                 let file_url = format!("{}{}", base_url, name);
-                                
-                                // 3. Fetch the content of each specific JSON file
                                 if let Ok(file_resp) = Request::get(&file_url).send().await {
                                     if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
                                         let cust = customers.entry(cust_name.clone()).or_insert(CustomerSummary {
@@ -71,19 +72,22 @@ async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
                                         for inst in &instances {
                                             let status = inst.instance_status.as_deref().unwrap_or("");
                                             let health = inst.health_status.as_deref().unwrap_or("");
-                                            if status == "RUNNING" || health == "Passed" {
+                                            if status == "RUNNING" && health == "Passed" {
                                                 ok += 1;
                                             } else {
                                                 err += 1;
                                             }
                                         }
 
-                                        cust.groups.insert(grp_name.clone(), GroupStatus {
+                                        let group = cust.groups.entry(grp_name.clone()).or_insert(GroupStatus {
                                             name: grp_name,
-                                            total: instances.len(),
-                                            ok,
-                                            err,
+                                            total: 0,
+                                            ok: 0,
+                                            err: 0,
                                         });
+                                        group.total += instances.len();
+                                        group.ok += ok;
+                                        group.err += err;
                                     }
                                 }
                             }
@@ -101,74 +105,88 @@ async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
 #[component]
 fn App() -> impl IntoView {
     let (refresh_count, set_refresh_count) = create_signal(0);
+    let (filter, set_filter) = create_signal(Filter::All);
     
-    // Resource that fetches data whenever refresh_count changes
     let health_data = create_resource(move || refresh_count.get(), |_| async move {
         fetch_all_health_data().await
     });
 
-    // Setup an interval to auto-refresh the UI every 60 seconds
     core::mem::forget(Interval::new(60_000, move || {
         set_refresh_count.update(|n| *n += 1);
     }));
 
     view! {
-        <div style="padding: 40px; background: #f8fafc; min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-            <div style="max-width: 1400px; margin: auto;">
-                <h1 style="color: #1e293b; margin-bottom: 30px; font-weight: 800; letter-spacing: -1px;">
-                    "JDE Global Health Dashboard"
-                </h1>
+        <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: -apple-system, sans-serif;">
+            <div style="max-width: 1200px; margin: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">"JDE HEALTH MONITOR"</h2>
+                    
+                    <div style="background: #e2e8f0; padding: 3px; border-radius: 10px; display: flex; gap: 2px;">
+                        // Added 'move' keyword to the click handlers below
+                        <button on:click=move |_| set_filter.set(Filter::All)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
+                                if filter.get() == Filter::All { "white" } else { "transparent" },
+                                if filter.get() == Filter::All { "#1e293b" } else { "#64748b" })> "ALL" </button>
+                        <button on:click=move |_| set_filter.set(Filter::Failed)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
+                                if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
+                                if filter.get() == Filter::Failed { "white" } else { "#64748b" })> "FAILED" </button>
+                        <button on:click=move |_| set_filter.set(Filter::Running)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
+                                if filter.get() == Filter::Running { "#22c55e" } else { "transparent" },
+                                if filter.get() == Filter::Running { "white" } else { "#64748b" })> "HEALTHY" </button>
+                    </div>
+                </div>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 25px;">
-                    <Transition fallback=|| view! { <p style="color: #64748b;">"Syncing with Oracle Cloud Infrastructure..."</p> }>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                    <Transition fallback=|| view! { <p style="color: #64748b;">"Syncing Live Status..."</p> }>
                         {move || {
-                            health_data.get().unwrap_or_default().into_iter().map(|(_, cust)| {
-                                let total_ok: usize = cust.groups.values().map(|g| g.ok).sum();
-                                let total_err: usize = cust.groups.values().map(|g| g.err).sum();
-                                let total_inst: usize = cust.groups.values().map(|g| g.total).sum();
-                                
-                                // Card color: Red if any instance is down, Green if all perfect
-                                let status_color = if total_inst == 0 { "#94a3b8" } 
-                                                 else if total_err > 0 { "#ef4444" } 
-                                                 else { "#22c55e" };
+                            health_data.get().unwrap_or_default().into_iter()
+                                .filter(|(_, cust)| {
+                                    let has_err = cust.groups.values().any(|g| g.err > 0);
+                                    match filter.get() {
+                                        Filter::All => true,
+                                        Filter::Failed => has_err,
+                                        Filter::Running => !has_err,
+                                    }
+                                })
+                                .map(|(_, cust)| {
+                                    let total_ok: usize = cust.groups.values().map(|g| g.ok).sum();
+                                    let total_err: usize = cust.groups.values().map(|g| g.err).sum();
+                                    let total_inst: usize = cust.groups.values().map(|g| g.total).sum();
+                                    let is_critical = total_err > 0;
 
-                                let health_pct = if total_inst > 0 { 
-                                    (total_ok as f32 / total_inst as f32 * 100.0) as i32 
-                                } else { 0 };
-
-                                view! {
-                                    <div style=format!("border-left: 6px solid {}; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);", status_color)>
-                                        <h2 style="margin: 0 0 15px 0; color: #1e293b; text-transform: uppercase; font-size: 1.4em;">{cust.name}</h2>
-                                        
-                                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 25px;">
-                                            {cust.groups.values().cloned().map(|g| {
-                                                view! {
-                                                    <span style="background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 15px; font-weight: 700; font-size: 0.75em; border: 1px solid #e2e8f0;">
-                                                        {format!("{}: {}", g.name, g.total)}
-                                                    </span>
-                                                }
-                                            }).collect_view()}
-                                        </div>
-
-                                        <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; display: flex; align-items: center; justify-content: space-between;">
-                                            <div style="font-size: 0.85em; font-weight: 600; display: flex; gap: 12px;">
-                                                <span style="color: #22c55e;">{format!("● {} OK", total_ok)}</span>
-                                                <span style="color: #ef4444;">{format!("● {} ERR", total_err)}</span>
-                                                <span style="color: #94a3b8;">"● 0 UNK"</span>
+                                    view! {
+                                        <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 5px solid {};", if is_critical { "#ef4444" } else { "#10b981" })>
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                                <h3 style="margin: 0; font-size: 1.1em; color: #1e293b; font-weight: 800;">{cust.name}</h3>
+                                                <div style=format!("font-size: 0.85em; font-weight: 900; color: {};", if is_critical { "#ef4444" } else { "#10b981" })>
+                                                    {format!("{}%", if total_inst > 0 { (total_ok as f32 / total_inst as f32 * 100.0) as i32 } else { 0 })}
+                                                </div>
                                             </div>
-                                            
-                                            <div style=format!("width: 60px; height: 60px; border-radius: 50%; border: 5px solid #f1f5f9; border-top-color: {}; display: flex; align-items: center; justify-content: center; font-size: 0.9em; font-weight: 800; color: #1e293b;", status_color)>
-                                                {format!("{}%", health_pct)}
+
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;">
+                                                {cust.groups.values().cloned().map(|g| {
+                                                    let group_err = g.err > 0;
+                                                    let bg = if group_err { "#fee2e2" } else { "#f1f5f9" };
+                                                    let fg = if group_err { "#b91c1c" } else { "#475569" };
+
+                                                    view! {
+                                                        <div style=format!("background: {}; color: {}; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 0.72em; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(0,0,0,0.05);", bg, fg)>
+                                                            <div style=format!("width: 6px; height: 6px; border-radius: 50%; background: {};", if group_err { "#ef4444" } else { "#22c55e" })></div>
+                                                            <span>{format!("{}: {}", g.name, g.total)}</span>
+                                                        </div>
+                                                    }
+                                                }).collect_view()}
+                                            </div>
+
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: 700; color: #94a3b8; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+                                                <span>{format!("{} OK", total_ok)}</span>
+                                                <span>{format!("{} ERROR", total_err)}</span>
                                             </div>
                                         </div>
-                                        
-                                        <button style="margin-top: 20px; width: 100%; padding: 12px; border: none; background: #1e293b; color: white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9em;"
-                                                on:click=|_| { /* Future drill-down logic */ }>
-                                            "VIEW DETAILS"
-                                        </button>
-                                    </div>
-                                }
-                            }).collect_view()
+                                    }
+                                }).collect_view()
                         }}
                     </Transition>
                 </div>
@@ -177,6 +195,4 @@ fn App() -> impl IntoView {
     }
 }
 
-fn main() { 
-    mount_to_body(|| view! { <App /> }) 
-}
+fn main() { mount_to_body(|| view! { <App /> }) }

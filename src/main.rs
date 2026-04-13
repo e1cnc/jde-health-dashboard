@@ -64,7 +64,7 @@ fn render_summary_view(
 }
 
 fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: String) -> View {
-    // Use  HashMap to only keep the latest record for each unique (Host, Instance)
+    // Use  a HashMap to only keep the latest record for each unique (Host, Instance)
     let mut latest_instances: HashMap<(String, String), HealthInstance> = HashMap::new();
 
     for inst in instances.into_iter().filter(|i| i.customer_name.as_ref() == Some(&customer)) {

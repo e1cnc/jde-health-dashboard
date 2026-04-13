@@ -39,7 +39,7 @@ fn App() -> impl IntoView {
                         <h2 style="color: #004488; margin: 0; font-size: 1.5em;">"JDE Global Health Monitor"</h2>
                         <p style="margin: 3px 0 0 0; font-size: 0.75em; color: #666;">"Auto-refreshing every 5 mins"</p>
                     </div>
-                    <div style="background: #004488; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.8em; font-weight: bold;">
+                    <div style="background: #004488; color: white; padding: 6px 12px; border-radius: 8px; font-size: 0.8em; font-weight: bold;">
                         "Syncs: " {move || refresh_count.get()}
                     </div>
                 </div>
@@ -83,7 +83,7 @@ fn App() -> impl IntoView {
                 </Transition>
 
                 {move || (selected_customer.get().is_some() || show_only_critical.get()).then(|| {
-                    let title = if show_only_critical.get() { "All Critical Managed Servers".to_string() } else { format!("Customer: {}", selected_customer.get().unwrap()) };
+                    let title = if show_only_critical.get() { "Global Critical Managed Servers".to_string() } else { format!("Customer: {}", selected_customer.get().unwrap()) };
                     view! {
                         <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                             <button 
@@ -135,7 +135,9 @@ fn render_summary_view(
     set_selected: WriteSignal<Option<String>>,
     set_search: WriteSignal<String>
 ) -> View {
-    let mut stats: HashMap<String, (HashSet<(String, String)>, i32, i32, i32)> = HashMap::new();
+    // Structure: Customer -> (Group -> Count, Running, Critical, Unknown)
+    let mut stats: HashMap<String, (HashMap<String, i32>, i32, i32, i32)> = HashMap::new();
+    let mut unique_check: HashSet<(String, String, String)> = HashSet::new();
     
     for inst in instances {
         let name = inst.customer_name.clone().unwrap_or_else(|| "Unknown".into());
@@ -143,8 +145,10 @@ fn render_summary_view(
         let group = inst.group.clone().unwrap_or_else(|| "UnknownGroup".into());
         let status = inst.status.as_deref().unwrap_or("UNKNOWN").to_uppercase();
         
-        let entry = stats.entry(name).or_insert((HashSet::new(), 0, 0, 0));
-        if entry.0.insert((host, group)) {
+        if unique_check.insert((name.clone(), host, group.clone())) {
+            let entry = stats.entry(name).or_insert((HashMap::new(), 0, 0, 0));
+            *entry.0.entry(group).or_insert(0) += 1;
+            
             if status == "RUNNING" || status == "PASSED" { entry.1 += 1; }
             else if status == "STOPPED" || status == "FAILED" { entry.2 += 1; }
             else { entry.3 += 1; }
@@ -157,16 +161,16 @@ fn render_summary_view(
     sorted_customers.sort_by(|a, b| a.0.cmp(&b.0));
 
     view! {
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
-            {sorted_customers.into_iter().map(|(name, (unique_set, running, critical, unknown))| {
-                let total = unique_set.len() as f32;
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 15px;">
+            {sorted_customers.into_iter().map(|(name, (group_counts, running, critical, unknown))| {
+                let total = (running + critical + unknown) as f32;
                 let running_pct = if total > 0.0 { (running as f32 / total) * 100.0 } else { 0.0 };
                 let critical_pct = if total > 0.0 { (critical as f32 / total) * 100.0 } else { 0.0 };
                 let unknown_pct = if total > 0.0 { (unknown as f32 / total) * 100.0 } else { 0.0 };
                 
                 let name_for_closure = name.clone();
                 let chart_style = format!(
-                    "width: 50px; height: 50px; border-radius: 50%; background: conic-gradient(#38a169 0% {}%, #c53030 {}% {}%, #cbd5e0 {}% {}%); display: flex; align-items: center; justify-content: center;",
+                    "width: 54px; height: 54px; border-radius: 50%; background: conic-gradient(#38a169 0% {}%, #c53030 {}% {}%, #cbd5e0 {}% {}%); display: flex; align-items: center; justify-content: center; flex-shrink: 0;",
                     running_pct, running_pct, running_pct + critical_pct, running_pct + critical_pct, running_pct + critical_pct + unknown_pct
                 );
 
@@ -177,20 +181,31 @@ fn render_summary_view(
                             set_search.set(String::new());
                         }
                         style=format!(
-                            "padding: 15px; border: 1px solid #e1e8ed; border-radius: 10px; cursor: pointer; background: white; display: flex; align-items: center; justify-content: space-between; border-left: 4px solid {};",
+                            "padding: 12px 15px; border: 1px solid #e1e8ed; border-radius: 10px; cursor: pointer; background: white; display: flex; align-items: center; justify-content: space-between; border-left: 5px solid {}; min-height: 100px;",
                             if critical > 0 { "#c53030" } else if unknown > 0 { "#cbd5e0" } else { "#38a169" }
                         )
                     >
                         <div style="flex: 1; min-width: 0; padding-right: 10px;">
                             <h4 style="margin: 0 0 5px 0; color: #1a202c; font-size: 1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{name}</h4>
-                            <div style="font-size: 0.8em; color: #4a5568;">{unique_set.len()} " Managed Servers"</div>
-                            <div style="margin-top: 5px; font-size: 0.75em; display: flex; gap: 6px;">
-                                <span style="color: #38a169; font-weight: bold;">"● " {running} " OK"</span>
-                                <span style="color: #c53030; font-weight: bold;">"● " {critical} " ERR"</span>
+                            
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;">
+                                {group_counts.into_iter().map(|(g, count)| {
+                                    view! {
+                                        <span style="background: #edf2f7; color: #2d3748; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; font-weight: 600;">
+                                            {format!("{}: {}", g, count)}
+                                        </span>
+                                    }
+                                }).collect_view()}
+                            </div>
+
+                            <div style="font-size: 0.7em; display: flex; gap: 8px;">
+                                <span style="color: #38a169; font-weight: 700;">"● " {running} " OK"</span>
+                                <span style="color: #c53030; font-weight: 700;">"● " {critical} " ERR"</span>
+                                {if unknown > 0 { view! { <span style="color: #718096; font-weight: 700;">"● " {unknown} " UNK"</span> }.into_view() } else { view! {}.into_view() }}
                             </div>
                         </div>
                         <div style=chart_style>
-                            <div style="width: 34px; height: 34px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7em; font-weight: 800; color: #333;">
+                            <div style="width: 36px; height: 36px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 800; color: #333;">
                                 {format!("{:.0}%", running_pct)}
                             </div>
                         </div>

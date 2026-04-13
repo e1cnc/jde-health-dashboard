@@ -2,7 +2,7 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
 use std::time::Duration;
-
+//test
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
     #[serde(default)] pub customer_name: String,

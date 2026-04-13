@@ -1,6 +1,56 @@
 [
   {
     "details": "",
+    "group_name": "ACORJDEDE1",
+    "instance_name": "DVJASAIS023",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.046145307+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEDE1",
+    "instance_name": "DVENT020",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.046156458+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEDE1",
+    "instance_name": "DVAIS022",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.046158131+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEDE1",
+    "instance_name": "DVBSSV024",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.046159754+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEDE1",
+    "instance_name": "DVJAS021",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.046160977+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
     "group_name": "ACORJDEPS1",
     "instance_name": "PSJAS011",
     "server_alias": "ARCOR_vmjdacor001",
@@ -26,6 +76,36 @@
     "server_alias": "ARCOR_vmjdacor001",
     "status": "UNKNOWN",
     "timestamp": "2026-04-13T07:37:25.784612081+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEPS1",
+    "instance_name": "PSJAS011",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.216805905+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEPS1",
+    "instance_name": "PSENT010",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.216810323+00:00",
+    "customer_name": "ARCOR",
+    "host_name": "vmjdacor001"
+  },
+  {
+    "details": "",
+    "group_name": "ACORJDEPS1",
+    "instance_name": "PSAIS011",
+    "server_alias": "ARCOR_vmjdacor001",
+    "status": "UNKNOWN",
+    "timestamp": "2026-04-13T07:58:30.216812908+00:00",
     "customer_name": "ARCOR",
     "host_name": "vmjdacor001"
   },

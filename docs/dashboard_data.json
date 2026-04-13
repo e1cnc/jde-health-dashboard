@@ -5,7 +5,7 @@
     "instance_name": "DV_JAS1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "RUNNING",
-    "timestamp": "2026-04-13T02:22:36.619420553+00:00",
+    "timestamp": "2026-04-13T03:16:09.340903889+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -15,7 +15,7 @@
     "instance_name": "DV_BSSV",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "RUNNING",
-    "timestamp": "2026-04-13T02:22:36.619425991+00:00",
+    "timestamp": "2026-04-13T03:16:09.340909137+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -25,7 +25,7 @@
     "instance_name": "DV_AIS",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "RUNNING",
-    "timestamp": "2026-04-13T02:22:36.619428916+00:00",
+    "timestamp": "2026-04-13T03:16:09.340912091+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -35,7 +35,7 @@
     "instance_name": "DV_ES",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "RUNNING",
-    "timestamp": "2026-04-13T02:22:36.619431129+00:00",
+    "timestamp": "2026-04-13T03:16:09.340914184+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -45,19 +45,9 @@
     "instance_name": "DV_JAS2_SSO",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "RUNNING",
-    "timestamp": "2026-04-13T02:22:36.619432971+00:00",
+    "timestamp": "2026-04-13T03:16:09.340916017+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
-  },
-  {
-    "details": "[LSJJNEWTR_vmjdlsjj59] Authenticating via http://vmjdlsjj59:8999/manage/mgmtrestservice...",
-    "group_name": "[LSJJNEWTR_vmjdlsjj59] Fetching Health for group: dv...",
-    "instance_name": "[LSJJNEWTR_vmjdlsjj59] Success: Data written to health_check.json",
-    "server_alias": null,
-    "status": null,
-    "timestamp": null,
-    "host_name": "vmjdlsjj59",
-    "customer_name": "LSJJNEWTR"
   },
   {
     "details": "",
@@ -65,7 +55,7 @@
     "instance_name": "PY_BSSV1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770184282+00:00",
+    "timestamp": "2026-04-13T03:16:20.602670880+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -75,7 +65,7 @@
     "instance_name": "PY_AIS1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770188889+00:00",
+    "timestamp": "2026-04-13T03:16:20.602675096+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -85,7 +75,7 @@
     "instance_name": "PY_JAS1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770190651+00:00",
+    "timestamp": "2026-04-13T03:16:20.602676619+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -95,7 +85,7 @@
     "instance_name": "PY_JAS3_SSO",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770192093+00:00",
+    "timestamp": "2026-04-13T03:16:20.602677810+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -105,7 +95,7 @@
     "instance_name": "PY_BSSV2",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770193025+00:00",
+    "timestamp": "2026-04-13T03:16:20.602678671+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -115,7 +105,7 @@
     "instance_name": "PY_ES2",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770194768+00:00",
+    "timestamp": "2026-04-13T03:16:20.602679773+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -125,7 +115,7 @@
     "instance_name": "PY_JAS2",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770196030+00:00",
+    "timestamp": "2026-04-13T03:16:20.602680494+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -135,7 +125,7 @@
     "instance_name": "PY_JAS4_SSO",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770196851+00:00",
+    "timestamp": "2026-04-13T03:16:20.602681055+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -145,7 +135,7 @@
     "instance_name": "PY_JASAIS1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770198283+00:00",
+    "timestamp": "2026-04-13T03:16:20.602682617+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -155,7 +145,7 @@
     "instance_name": "PY_JAS5_SSO",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770200156+00:00",
+    "timestamp": "2026-04-13T03:16:20.602683709+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
   },
@@ -165,108 +155,8 @@
     "instance_name": "PY_ES1",
     "server_alias": "LSJJNEWTR_vmjdlsjj59",
     "status": "STOPPED",
-    "timestamp": "2026-04-13T02:22:47.770201007+00:00",
+    "timestamp": "2026-04-13T03:16:20.602684370+00:00",
     "customer_name": "LSJJNEWTR",
     "host_name": "vmjdlsjj59"
-  },
-  {
-    "details": "[LSJJNEWTR_vmjdlsjj59] Authenticating via http://vmjdlsjj59:8999/manage/mgmtrestservice...",
-    "group_name": "[LSJJNEWTR_vmjdlsjj59] Fetching Health for group: py...",
-    "instance_name": "[LSJJNEWTR_vmjdlsjj59] Success: Data written to health_check.json",
-    "server_alias": null,
-    "status": null,
-    "timestamp": null,
-    "host_name": "vmjdlsjj59",
-    "customer_name": "LSJJNEWTR"
-  },
-  {
-    "details": "",
-    "group_name": "dv",
-    "instance_name": "DEV_JAS2",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "UNKNOWN",
-    "timestamp": "2026-04-13T02:24:42.754967565+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "",
-    "group_name": "dv",
-    "instance_name": "DEV_ES",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "STOPPED",
-    "timestamp": "2026-04-13T02:24:42.754972465+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "",
-    "group_name": "dv",
-    "instance_name": "DEV_BSSV",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "UNKNOWN",
-    "timestamp": "2026-04-13T02:24:42.754974309+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "",
-    "group_name": "dv",
-    "instance_name": "DEV_AIS",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "UNKNOWN",
-    "timestamp": "2026-04-13T02:24:42.754975580+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "",
-    "group_name": "dv",
-    "instance_name": "DEV_JAS1",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "UNKNOWN",
-    "timestamp": "2026-04-13T02:24:42.754977454+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "[LSJJOLDTR_vmjdlsjj29] Authenticating via http://vmjdlsjj29:8999/manage/mgmtrestservice...",
-    "group_name": "[LSJJOLDTR_vmjdlsjj29] Fetching Health for group: dv...",
-    "instance_name": "Success: Written to health_check.json",
-    "server_alias": null,
-    "status": null,
-    "timestamp": null,
-    "host_name": "vmjdlsjj29",
-    "customer_name": "LSJJOLDTR"
-  },
-  {
-    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
-    "group_name": "ps",
-    "instance_name": "PS_JAS",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "RUNNING",
-    "timestamp": "2026-04-13T02:24:55.664578760+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed; ",
-    "group_name": "ps",
-    "instance_name": "PS_ES",
-    "server_alias": "LSJJOLDTR_vmjdlsjj29",
-    "status": "RUNNING",
-    "timestamp": "2026-04-13T02:24:55.664584391+00:00",
-    "customer_name": "LSJJOLDTR",
-    "host_name": "vmjdlsjj29"
-  },
-  {
-    "details": "[LSJJOLDTR_vmjdlsjj29] Authenticating via http://vmjdlsjj29:8999/manage/mgmtrestservice...",
-    "group_name": "[LSJJOLDTR_vmjdlsjj29] Fetching Health for group: ps...",
-    "instance_name": "Success: Written to health_check.json",
-    "server_alias": null,
-    "status": null,
-    "timestamp": null,
-    "host_name": "vmjdlsjj29",
-    "customer_name": "LSJJOLDTR"
   }
 ]

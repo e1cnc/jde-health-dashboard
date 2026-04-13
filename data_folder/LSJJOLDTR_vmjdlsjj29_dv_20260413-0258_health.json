@@ -1,0 +1,12 @@
+[
+  {
+    "details": "[LSJJOLDTR_vmjdlsjj29] Authenticating via http://vmjdlsjj29:8999/manage/mgmtrestservice...",
+    "group_name": "[LSJJOLDTR_vmjdlsjj29] Fetching Health for group: dv...",
+    "instance_name": "Success: Written to health_check.json",
+    "server_alias": null,
+    "status": null,
+    "timestamp": null,
+    "host_name": "vmjdlsjj29",
+    "customer_name": "LSJJOLDTR"
+  }
+]

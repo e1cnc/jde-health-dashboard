@@ -32,7 +32,7 @@ fn App() -> impl IntoView {
     let health_data = create_resource(move || refresh_count.get(), |_| async move {
         let mut all = Vec::new();
         let targets = vec![("LSJJNEWTR", "dv"), ("LSJJNEWTR", "py")];
-        // Ensure this key is correct for your OCI Ashburn region
+        // Ensure this PAR URL is correct for your OCI Ashburn region
         let par_base = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
         for (cust, group) in targets {
@@ -61,12 +61,16 @@ fn App() -> impl IntoView {
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
                 {move || {
                     let data = health_data.get().unwrap_or_default();
-                    let running = data.iter().filter(|i| i.instance_status.as_deref() == Some("RUNNING")).count();
+                    // Fix: Check for both RUNNING status or Passed healthStatus
+                    let running = data.iter().filter(|i| 
+                        i.instance_status.as_deref() == Some("RUNNING") || 
+                        i.health_status.as_deref() == Some("Passed")
+                    ).count();
                     let stopped = data.iter().filter(|i| i.instance_status.as_deref() == Some("STOPPED")).count();
                     
                     view! {
-                        <StatusCard title="RUNNING" count=running color="#22c55e" icon="✔" />
-                        <StatusCard title="STOPPED" count=stopped color="#ef4444" icon="🪲" />
+                        <StatusCard title="HEALTHY" count=running color="#22c55e" icon="✔" />
+                        <StatusCard title="CRITICAL" count=stopped color="#ef4444" icon="🪲" />
                     }
                 }}
             </div>
@@ -110,10 +114,23 @@ fn App() -> impl IntoView {
                                             let name = inst.instance_name.clone().unwrap_or_default();
                                             let name_for_click = name.clone();
                                             let name_for_view = name.clone();
-                                            let status = inst.instance_status.clone().unwrap_or_default();
-                                            let is_stopped = status == "STOPPED";
-                                            let msg = inst.message.clone().unwrap_or_default();
                                             
+                                            // Determine display status and color
+                                            let status = inst.instance_status.clone().unwrap_or_else(|| inst.health_status.clone().unwrap_or_default());
+                                            let is_unhealthy = status == "STOPPED" || status == "Failed";
+                                            
+                                            // Adapted logic from your Axum script: Flatten checks into a string
+                                            let mut details_str = inst.message.clone().unwrap_or_default();
+                                            if let Some(checks_val) = &inst.checks {
+                                                if let Some(checks_arr) = checks_val.as_array() {
+                                                    for c in checks_arr {
+                                                        let cn = c.get("HealthCheckName").and_then(|v| v.as_str()).unwrap_or("");
+                                                        let cr = c.get("Result").and_then(|v| v.as_str()).unwrap_or("");
+                                                        details_str.push_str(&format!("{}: {}; ", cn, cr));
+                                                    }
+                                                }
+                                            }
+
                                             view! {
                                                 <div 
                                                     on:click=move |_| {
@@ -129,18 +146,18 @@ fn App() -> impl IntoView {
                                                         <div style="font-weight: 600;">{name}</div>
                                                         <div style=format!(
                                                             "padding: 4px 10px; border-radius: 20px; color: white; font-size: 0.7em; font-weight: bold; background: {};", 
-                                                            if is_stopped { "#ef4444" } else { "#22c55e" }
+                                                            if is_unhealthy { "#ef4444" } else { "#22c55e" }
                                                         )>
                                                             {status}
                                                         </div>
                                                     </div>
                                                     
                                                     {move || (selected_instance.get() == Some(name_for_view.clone())).then(|| {
-                                                        let display_text = msg.clone();
+                                                        let display_text = details_str.clone();
                                                         view! {
                                                             <div style="margin-top: 10px; padding: 10px; background: #fff7ed; border-left: 4px solid #f97316; font-size: 0.8em; color: #7c2d12;">
                                                                 {if display_text.is_empty() { 
-                                                                    "System checks passed successfully.".to_string() 
+                                                                    "No detailed check information available.".to_string() 
                                                                 } else { 
                                                                     display_text 
                                                                 }}

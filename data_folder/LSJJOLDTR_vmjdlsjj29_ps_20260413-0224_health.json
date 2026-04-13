@@ -1,0 +1,20 @@
+{
+  "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
+  "group_name": "ps",
+  "instance_name": "PS_JAS",
+  "server_alias": "LSJJOLDTR_vmjdlsjj29",
+  "status": "RUNNING",
+  "timestamp": "2026-04-13T02:24:55.664578760+00:00",
+  "customer_name": "LSJJOLDTR",
+  "host_name": "vmjdlsjj29"
+}
+{
+  "details": "Port Test: Passed; UBE: Passed; BSFN: Passed; ",
+  "group_name": "ps",
+  "instance_name": "PS_ES",
+  "server_alias": "LSJJOLDTR_vmjdlsjj29",
+  "status": "RUNNING",
+  "timestamp": "2026-04-13T02:24:55.664584391+00:00",
+  "customer_name": "LSJJOLDTR",
+  "host_name": "vmjdlsjj29"
+}

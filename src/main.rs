@@ -4,7 +4,7 @@ use gloo_net::http::Request;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
-    // Fields injected by the GitHub Action from the filename
+    // Injected by the YAML script from the filename
     #[serde(default)]
     pub customer_name: String,
 
@@ -12,7 +12,7 @@ pub struct HealthInstance {
     #[serde(default, alias = "server_alias")]
     pub host_name: String,
 
-    // Maps "instance_name" or "group_name" to the Group column
+    // Maps "group_name" or "instance_name" to the Group column
     #[serde(default, alias = "instance_name", alias = "group_name")]
     pub instance_name: String,
 
@@ -44,7 +44,7 @@ fn App() -> impl IntoView {
                     </tr>
                 </thead>
                 <tbody>
-                    <Transition fallback=move || view! { <tr><td colspan="5" style="padding: 40px; text-align: center; color: #666;">"Fetching live health data..."</td></tr> }>
+                    <Transition fallback=move || view! { <tr><td colspan="5" style="padding: 40px; text-align: center; color: #666;">"Loading health data..."</td></tr> }>
                         {move || {
                             health_data.get().map(|data| {
                                 match data {
@@ -66,7 +66,7 @@ fn App() -> impl IntoView {
                                             }
                                         }).collect_view()
                                     },
-                                    Err(e) => view! { <tr><td colspan="5" style="color: #c00; padding: 20px; text-align: center;">{format!("Error loading data: {}", e)}</td></tr> }.into_view()
+                                    Err(e) => view! { <tr><td colspan="5" style="color: #c00; padding: 20px; text-align: center;">{format!("Error: {}", e)}</td></tr> }.into_view()
                                 }
                             })
                         }}
@@ -78,11 +78,10 @@ fn App() -> impl IntoView {
 }
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
-    // Relative path ensures it works in the GitHub Pages subfolder
     let url = "./dashboard_data.json";
     let resp = Request::get(url).send().await.map_err(|e| e.to_string())?;
-    if !resp.ok() { return Err(format!("HTTP Error: {}", resp.status())); }
-    resp.json::<Vec<HealthInstance>>().await.map_err(|e| format!("Parsing failed: {}", e))
+    if !resp.ok() { return Err(format!("HTTP Error {}", resp.status())); }
+    resp.json::<Vec<HealthInstance>>().await.map_err(|e| format!("Parsing Error: {}", e))
 }
 
 fn main() { mount_to_body(|| view! { <App /> }) }

@@ -37,28 +37,28 @@ jobs:
           # 3. Cleanup files older than 15 days
           find data_folder -name "*_health.json" -type f -mtime +15 -delete
 
-          # 4. CONSOLIDATION & METADATA INJECTION
-          # This builds a single valid JSON array from all individual files
+          # 4. CONSOLIDATION & METADATA INJECTION (The Fix for Syntax Errors)
+          echo "Building dashboard_data.json..."
           echo "[" > docs/dashboard_data.json
           FIRST=true
           
           for FILE in data_folder/*_health.json; do
             [ -e "$FILE" ] || continue
             
-            # Extract info from filename: CUSTOMER_host_dv_datetime_health.json
+            # Extract info from filename: CUSTOMER_host_group_datetime_health.json
             BASENAME=$(basename "$FILE")
             CUST=$(echo "$BASENAME" | cut -d'_' -f1)
             HOST=$(echo "$BASENAME" | cut -d'_' -f2)
             
             if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> docs/dashboard_data.json; fi
             
-            # Inject filename data into the JSON objects so Rust can see them
+            # Use jq to merge records and inject filename data into every object
             jq -c --arg cust "$CUST" --arg host "$HOST" \
               '.[] | . + {customer_name: $cust, host_name: $host}' "$FILE" >> docs/dashboard_data.json
           done
           echo "]" >> docs/dashboard_data.json
           
-          # Maintain a copy in the root for redundancy
+          # Maintain copy in root
           cp docs/dashboard_data.json dashboard_data.json
 
       - name: Commit and Push
@@ -67,7 +67,7 @@ jobs:
           git config --global user.email "actions@github.com"
           git add data_folder/ dashboard_data.json docs/dashboard_data.json
           if git diff --cached --quiet; then
-            echo "No changes to sync."
+            echo "No changes."
           else
             git commit -m "Sync & Build: $(date)"
             git push

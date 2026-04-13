@@ -24,17 +24,21 @@ fn App() -> impl IntoView {
         |_| async move { fetch_health_data().await }
     );
 
+    // Auto-refresh every 5 minutes
     set_interval(
         move || { set_refresh_count.update(|n| *n += 1); },
         Duration::from_millis(300_000),
     );
 
     view! {
-        <div style="padding: 20px; font-family: sans-serif; background-color: #f0f4f8; min-height: 100vh;">
-            <div style="max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #004488; padding-bottom: 10px; margin-bottom: 20px;">
-                    <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor Dashboard"</h2>
-                    <div style="font-size: 0.85em; color: #777;">"Sync Count: " {move || refresh_count.get()}</div>
+        <div style="padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f9; min-height: 100vh;">
+            <div style="max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #004488; padding-bottom: 15px; margin-bottom: 25px;">
+                    <h2 style="color: #004488; margin: 0; letter-spacing: -0.5px;">"JDE Global Health Monitor Dashboard"</h2>
+                    <div style="background: #eef2f7; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; color: #555; font-weight: bold;">
+                        "Sync Count: " {move || refresh_count.get()}
+                    </div>
                 </div>
 
                 {move || selected_customer.get().map(|name| view! {
@@ -43,22 +47,24 @@ fn App() -> impl IntoView {
                             set_selected_customer.set(None);
                             set_search_query.set(String::new()); 
                         }
-                        style="background: #004488; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px;"
+                        style="background: #004488; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-bottom: 25px; font-weight: 600; display: flex; align-items: center; gap: 8px;"
                     >
-                        "← Back to All Customers"
+                        "← Back to Overview"
                     </button>
-                    <h3 style="margin-bottom: 15px;">"Customer: " {name}</h3>
+                    <h3 style="margin-bottom: 20px; color: #333;">"Customer Detail: " {name}</h3>
                 })}
 
-                <input 
-                    type="text" 
-                    placeholder="Search..." 
-                    style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccd; border-radius: 8px;"
-                    on:input=move |ev| set_search_query.set(event_target_value(&ev))
-                    prop:value=search_query
-                />
+                <div style="position: relative; margin-bottom: 30px;">
+                    <input 
+                        type="text" 
+                        placeholder="Search by Customer or Instance..." 
+                        style="width: 100%; padding: 14px 20px; border: 2px solid #e1e8ed; border-radius: 12px; font-size: 1em; outline: none; transition: border-color 0.2s;"
+                        on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                        prop:value=search_query
+                    />
+                </div>
 
-                <Transition fallback=move || view! { <p>"Loading Health Data..."</p> }>
+                <Transition fallback=move || view! { <div style="text-align: center; padding: 40px; color: #666;">"Gathering health metrics..."</div> }>
                     {move || health_data.get().map(|data| match data {
                         Ok(instances) => {
                             let query = search_query.get().to_lowercase();
@@ -68,7 +74,11 @@ fn App() -> impl IntoView {
                                 render_summary_view(instances, query, set_selected_customer, set_search_query)
                             }
                         },
-                        Err(e) => view! { <p style="color: red;">"Error: " {e}</p> }.into_view()
+                        Err(e) => view! { 
+                            <div style="padding: 20px; background: #fff5f5; border-radius: 8px; border: 1px solid #feb2b2; color: #c53030;">
+                                <strong>"Data Error: "</strong> {e}
+                            </div> 
+                        }.into_view()
                     })}
                 </Transition>
             </div>
@@ -82,7 +92,8 @@ fn render_summary_view(
     set_selected: WriteSignal<Option<String>>,
     set_search: WriteSignal<String>
 ) -> View {
-    let mut customer_stats: HashMap<String, (HashSet<(String, String)>, bool)> = HashMap::new();
+    // Grouping by unique (Host, Instance) and tracking status
+    let mut stats: HashMap<String, (HashSet<(String, String)>, i32, i32)> = HashMap::new();
     
     for inst in instances {
         let name = inst.customer_name.clone().unwrap_or_else(|| "Unknown".into());
@@ -90,25 +101,35 @@ fn render_summary_view(
         let group = inst.group.clone().unwrap_or_else(|| "UnknownGroup".into());
         let status = inst.status.as_deref().unwrap_or("UNKNOWN").to_uppercase();
         
-        let is_critical = status == "STOPPED" || status == "FAILED";
-        let entry = customer_stats.entry(name).or_insert((HashSet::new(), false));
+        let entry = stats.entry(name).or_insert((HashSet::new(), 0, 0));
         
-        entry.0.insert((host, group));
-        if is_critical { entry.1 = true; }
+        // Deduplication: Only count status if it's a new unique (Host, Group) pair
+        if entry.0.insert((host, group)) {
+            if status == "RUNNING" || status == "PASSED" {
+                entry.1 += 1;
+            } else if status == "STOPPED" || status == "FAILED" {
+                entry.2 += 1;
+            }
+        }
     }
 
-    let mut sorted_customers: Vec<_> = customer_stats.into_iter()
+    let mut sorted_customers: Vec<_> = stats.into_iter()
         .filter(|(name, _)| name.to_lowercase().contains(&query))
         .collect();
     sorted_customers.sort_by(|a, b| a.0.cmp(&b.0));
 
     view! {
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
-            {sorted_customers.into_iter().map(|(name, (unique_set, has_error))| {
-                let count = unique_set.len(); 
-                let display_name = name.clone();
-                let bg_color = if has_error { "#fff5f5" } else { "#fafafa" };
-                let border_color = if has_error { "#feb2b2" } else { "#ddd" };
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+            {sorted_customers.into_iter().map(|(name, (unique_set, running, critical))| {
+                let total = unique_set.len() as f32;
+                let running_pct = if total > 0.0 { (running as f32 / total) * 100.0 } else { 0.0 };
+                let critical_pct = if total > 0.0 { (critical as f32 / total) * 100.0 } else { 0.0 };
+                
+                // Conic gradient chart logic
+                let chart_style = format!(
+                    "width: 70px; height: 70px; border-radius: 50%; background: conic-gradient(#38a169 0% {}%, #c53030 {}% {}%, #cbd5e0 {}% 100%); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 5px rgba(0,0,0,0.1);",
+                    running_pct, running_pct, running_pct + critical_pct, running_pct + critical_pct
+                );
 
                 view! {
                     <div 
@@ -117,18 +138,25 @@ fn render_summary_view(
                             set_search.set(String::new());
                         }
                         style=format!(
-                            "padding: 20px; border: 2px solid {}; border-radius: 10px; cursor: pointer; background: {};",
-                            border_color, bg_color
+                            "padding: 24px; border: 1px solid #e1e8ed; border-radius: 16px; cursor: pointer; background: white; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; border-left: 6px solid {};",
+                            if critical > 0 { "#c53030" } else { "#38a169" }
                         )
                     >
-                        <h4 style="margin: 0; color: #004488;">{display_name}</h4>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                            <span style="font-size: 0.85em; color: #666;">{count} " Unique Instances"</span>
-                            {if has_error {
-                                view! { <span style="font-size: 0.75em; font-weight: bold; color: #c53030;">"● CRITICAL"</span> }.into_view()
-                            } else {
-                                view! { <span style="font-size: 0.75em; font-weight: bold; color: #38a169;">"● Healthy"</span> }.into_view()
-                            }}
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #1a202c; font-size: 1.25em;">{name}</h4>
+                            <div style="font-size: 0.95em; color: #4a5568; font-weight: 500;">
+                                {unique_set.len()} " Instances"
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.85em; display: flex; gap: 12px;">
+                                <span style="color: #38a169; font-weight: bold;">"● " {running} " OK"</span>
+                                <span style="color: #c53030; font-weight: bold;">"● " {critical} " ERR"</span>
+                            </div>
+                        </div>
+
+                        <div style=chart_style>
+                            <div style="width: 48px; height: 48px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; font-weight: 800; color: #2d3748;">
+                                {format!("{:.0}%", running_pct)}
+                            </div>
                         </div>
                     </div>
                 }
@@ -153,35 +181,37 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
         .collect();
 
     view! {
-        <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr style="background-color: #004488; color: white; text-align: left;">
-                    <th style="padding: 12px;">"Host"</th>
-                    <th style="padding: 12px;">"Instance"</th>
-                    <th style="padding: 12px;">"Status"</th>
-                    <th style="padding: 12px;">"Last Update"</th>
-                </tr>
-            </thead>
-            <tbody>
-                {filtered.into_iter().map(|inst| {
-                    let status_str = inst.status.clone().unwrap_or_else(|| "UNKNOWN".into());
-                    let is_ok = status_str == "RUNNING" || status_str == "Passed";
-                    let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } else { ("#fff5f5", "#742a2a") };
-                    view! {
-                        <tr style="border-bottom: 1px solid #edf2f7;">
-                            <td style="padding: 12px;">{inst.host_name.clone().unwrap_or_default()}</td>
-                            <td style="padding: 12px;">{inst.group.clone().unwrap_or_default()}</td>
-                            <td style="padding: 12px;">
-                                <span style=format!("padding: 4px 10px; border-radius: 20px; font-weight: bold; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
-                                    {status_str}
-                                </span>
-                            </td>
-                            <td style="padding: 12px; font-size: 0.8em; color: #666;">{inst.last_sync.clone().unwrap_or_default()}</td>
-                        </tr>
-                    }
-                }).collect_view()}
-            </tbody>
-        </table>
+        <div style="overflow-x: auto; border: 1px solid #e1e8ed; border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background-color: #004488; color: white; text-align: left;">
+                        <th style="padding: 16px; font-weight: 600;">"Host Name"</th>
+                        <th style="padding: 16px; font-weight: 600;">"Service Instance"</th>
+                        <th style="padding: 16px; font-weight: 600;">"Status"</th>
+                        <th style="padding: 16px; font-weight: 600;">"Last Heartbeat"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filtered.into_iter().map(|inst| {
+                        let status_str = inst.status.clone().unwrap_or_else(|| "UNKNOWN".into());
+                        let is_ok = status_str == "RUNNING" || status_str == "Passed";
+                        let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } else { ("#fff5f5", "#742a2a") };
+                        view! {
+                            <tr style="border-bottom: 1px solid #edf2f7; transition: background 0.1s;">
+                                <td style="padding: 16px; color: #2d3748; font-weight: 500;">{inst.host_name.clone().unwrap_or_default()}</td>
+                                <td style="padding: 16px; color: #4a5568;">{inst.group.clone().unwrap_or_default()}</td>
+                                <td style="padding: 16px;">
+                                    <span style=format!("padding: 6px 12px; border-radius: 6px; font-size: 0.85em; font-weight: 800; background: {}; color: {}; border: 1px solid {}; text-transform: uppercase;", bg, fg, fg)>
+                                        {status_str}
+                                    </span>
+                                </td>
+                                <td style="padding: 16px; font-size: 0.85em; color: #718096; font-family: monospace;">{inst.last_sync.clone().unwrap_or_default()}</td>
+                            </tr>
+                        }
+                    }).collect_view()}
+                </tbody>
+            </table>
+        </div>
     }.into_view()
 }
 

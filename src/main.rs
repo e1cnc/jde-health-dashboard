@@ -53,7 +53,6 @@ fn App() -> impl IntoView {
                         
                         for i in &insts {
                             if let Some(c) = &i.customer_name { customers.insert(c.clone()); }
-                            
                             let key = (i.host_name.clone(), i.group.clone());
                             if unique_servers.insert(key) {
                                 let s = i.status.as_deref().unwrap_or("").to_uppercase();
@@ -90,7 +89,7 @@ fn App() -> impl IntoView {
                     }
                 })}
 
-                <input type="text" placeholder="Filter current view..." 
+                <input type="text" placeholder="Search by name, group, or status..." 
                     style="width: 100%; padding: 10px 15px; border: 1px solid #e1e8ed; border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; font-size: 0.9em;"
                     on:input=move |ev| set_search_query.set(event_target_value(&ev))
                     prop:value=search_query />
@@ -192,10 +191,7 @@ fn render_critical_global_view(instances: Vec<HealthInstance>, query: String) ->
         }
     }
     
-    // Sort critical list by Group then Managed Server Name
-    critical_list.sort_by(|a, b| {
-        a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group))
-    });
+    critical_list.sort_by(|a, b| a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group)));
 
     let filtered: Vec<_> = critical_list.into_iter().filter(|inst| {
         let json = serde_json::to_string(&inst).unwrap_or_default().to_lowercase();
@@ -213,11 +209,7 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
     }
     
     let mut filtered: Vec<_> = latest_instances.into_values().collect();
-    
-    // Sorting: Group (DV, PY) then Managed Server Name
-    filtered.sort_by(|a, b| {
-        a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group))
-    });
+    filtered.sort_by(|a, b| a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group)));
 
     let filtered_searched: Vec<_> = filtered.into_iter().filter(|inst| {
         let json = serde_json::to_string(&inst).unwrap_or_default().to_lowercase();
@@ -233,11 +225,11 @@ fn render_table(filtered: Vec<HealthInstance>) -> View {
             <table style="width: 100%; border-collapse: collapse; background: white; font-size: 0.85em;">
                 <thead>
                     <tr style="background-color: #004488; color: white; text-align: left;">
+                        <th style="padding: 12px; width: 400px;">"Raw Resource JSON"</th>
                         <th style="padding: 12px;">"Group"</th>
                         <th style="padding: 12px;">"Managed Server Instance"</th>
                         <th style="padding: 12px;">"Status"</th>
                         <th style="padding: 12px;">"Last Sync"</th>
-                        <th style="padding: 12px;">"Source Host"</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -247,8 +239,12 @@ fn render_table(filtered: Vec<HealthInstance>) -> View {
                         let (bg, fg) = if status_upper == "RUNNING" || status_upper == "PASSED" { ("#e6fffa", "#234e52") } 
                                        else if status_upper == "STOPPED" || status_upper == "FAILED" { ("#fff5f5", "#742a2a") }
                                        else { ("#edf2f7", "#4a5568") };
+                        
+                        let raw_json = serde_json::to_string(&inst).unwrap_or_default();
+
                         view! {
                             <tr style="border-bottom: 1px solid #edf2f7;">
+                                <td style="padding: 12px; font-family: monospace; font-size: 0.8em; color: #444; word-break: break-all;">{raw_json}</td>
                                 <td style="padding: 12px; font-weight: bold; color: #1a202c;">{inst.server_group.clone().unwrap_or_default()}</td>
                                 <td style="padding: 12px; color: #4a5568;">{inst.group.clone().unwrap_or_default()}</td>
                                 <td style="padding: 12px;">
@@ -257,7 +253,6 @@ fn render_table(filtered: Vec<HealthInstance>) -> View {
                                     </span>
                                 </td>
                                 <td style="padding: 12px; color: #718096; font-family: monospace;">{inst.last_sync.clone().unwrap_or_default()}</td>
-                                <td style="padding: 12px; color: #718096;">{inst.host_name.clone().unwrap_or_default()}</td>
                             </tr>
                         }
                     }).collect_view()}

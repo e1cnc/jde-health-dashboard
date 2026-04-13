@@ -24,31 +24,28 @@ jobs:
           
           # Fetch file list and download
           FILES=$(curl -s "$LIST_URL" | jq -r '.objects[].name | select(contains("_health.json"))')
-          for F in $FILES; do
-            curl -s "${LIST_URL}${F}" -o "data_folder/$F"
-          done
-
-          # Merge JSON files into a single array
-          if [ "$(ls -A data_folder)" ]; then
-            jq -s 'add' data_folder/*_health.json > docs/dashboard_data.json
-          else
+          
+          # If no files found, ensure we don't break the dashboard
+          if [ -z "$FILES" ]; then
             echo "[]" > docs/dashboard_data.json
+          else
+            for F in $FILES; do
+              curl -s "${LIST_URL}${F}" -o "data_folder/$F"
+            done
+            # Merge JSON files into a single array
+            jq -s 'add' data_folder/*_health.json > docs/dashboard_data.json
           fi
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-
-          # Stage changes
           git add docs/dashboard_data.json
           
-          # Use stash to safely pull latest code before committing
           git stash
           git pull --rebase origin main
           git stash pop || echo "Nothing to pop"
           
-          # Re-stage and commit
           git add docs/dashboard_data.json
           if git diff --cached --quiet; then
             echo "No changes to sync."

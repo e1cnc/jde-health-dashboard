@@ -8,8 +8,8 @@ use std::time::Duration;
 pub struct HealthInstance {
     #[serde(default)] pub customer_name: Option<String>,
     #[serde(default)] pub host_name: Option<String>,
-    #[serde(default)] pub server_group: Option<String>, // Direct group from config.txt
-    #[serde(default, alias = "instance_name")] pub group: Option<String>, // Managed server name
+    #[serde(default)] pub server_group: Option<String>, 
+    #[serde(default, alias = "instance_name")] pub group: Option<String>,
     #[serde(default)] pub status: Option<String>,
     #[serde(default, alias = "timestamp")] pub last_sync: Option<String>,
 }
@@ -26,7 +26,6 @@ fn App() -> impl IntoView {
         |_| async move { fetch_health_data().await }
     );
 
-    // Refresh data every 5 minutes
     set_interval(
         move || { set_refresh_count.update(|n| *n += 1); },
         Duration::from_millis(300_000),
@@ -48,11 +47,15 @@ fn App() -> impl IntoView {
 
                 <Transition fallback=|| ()>
                     {move || health_data.get().map(|data| if let Ok(insts) = data {
-                        let mut unique_map = HashSet::new();
+                        let mut customers = HashSet::new();
+                        let mut unique_servers = HashSet::new();
                         let mut critical_count = 0;
+                        
                         for i in &insts {
+                            if let Some(c) = &i.customer_name { customers.insert(c.clone()); }
+                            
                             let key = (i.host_name.clone(), i.group.clone());
-                            if unique_map.insert(key) {
+                            if unique_servers.insert(key) {
                                 let s = i.status.as_deref().unwrap_or("").to_uppercase();
                                 if s == "STOPPED" || s == "FAILED" { critical_count += 1; }
                             }
@@ -61,12 +64,12 @@ fn App() -> impl IntoView {
                             <div style="display: flex; gap: 15px; margin-bottom: 20px;">
                                 <div on:click=move |_| { set_show_only_critical.set(false); set_selected_customer.set(None); }
                                      style="flex: 1; background: #ebf8ff; padding: 15px; border-radius: 10px; border-left: 5px solid #3182ce; cursor: pointer;">
-                                    <div style="font-size: 0.75em; color: #2b6cb0; font-weight: bold; text-transform: uppercase;">"Unique Managed Servers"</div>
-                                    <div style="font-size: 1.6em; font-weight: bold; color: #2c5282;">{unique_map.len()}</div>
+                                    <div style="font-size: 0.75em; color: #2b6cb0; font-weight: bold; text-transform: uppercase;">"Managed Customers"</div>
+                                    <div style="font-size: 1.6em; font-weight: bold; color: #2c5282;">{customers.len()}</div>
                                 </div>
                                 <div on:click=move |_| { set_show_only_critical.set(true); set_selected_customer.set(None); }
                                      style="flex: 1; background: #fff5f5; padding: 15px; border-radius: 10px; border-left: 5px solid #e53e3e; cursor: pointer;">
-                                    <div style="font-size: 0.75em; color: #c53030; font-weight: bold; text-transform: uppercase;">"Critical Issues"</div>
+                                    <div style="font-size: 0.75em; color: #c53030; font-weight: bold; text-transform: uppercase;">"Global Critical Issues"</div>
                                     <div style="font-size: 1.6em; font-weight: bold; color: #9b2c2c;">{critical_count}</div>
                                 </div>
                             </div>
@@ -75,7 +78,7 @@ fn App() -> impl IntoView {
                 </Transition>
 
                 {move || (selected_customer.get().is_some() || show_only_critical.get()).then(|| {
-                    let title = if show_only_critical.get() { "Global Critical Managed Servers".to_string() } else { format!("Customer: {}", selected_customer.get().unwrap()) };
+                    let title = if show_only_critical.get() { "Global Critical List".to_string() } else { format!("Customer: {}", selected_customer.get().unwrap()) };
                     view! {
                         <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                             <button on:click=move |_| { set_selected_customer.set(None); set_show_only_critical.set(false); set_search_query.set(String::new()); }
@@ -87,12 +90,12 @@ fn App() -> impl IntoView {
                     }
                 })}
 
-                <input type="text" placeholder="Filter by customer or server name..." 
+                <input type="text" placeholder="Filter current view..." 
                     style="width: 100%; padding: 10px 15px; border: 1px solid #e1e8ed; border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; font-size: 0.9em;"
                     on:input=move |ev| set_search_query.set(event_target_value(&ev))
                     prop:value=search_query />
 
-                <Transition fallback=|| view! { <div style="text-align: center; padding: 30px; color: #666;">"Syncing data..."</div> }>
+                <Transition fallback=|| view! { <div style="text-align: center; padding: 30px; color: #666;">"Syncing JDE Health Data..."</div> }>
                     {move || health_data.get().map(|data| match data {
                         Ok(instances) => {
                             let query = search_query.get().to_lowercase();
@@ -121,7 +124,7 @@ fn render_summary_view(instances: Vec<HealthInstance>, query: String, set_select
         
         if unique_check.insert((name.clone(), host, managed_server)) {
             let entry = stats.entry(name).or_insert((HashMap::new(), 0, 0, 0));
-            *entry.0.entry(config_group).or_insert(0) += 1; // Grouping by server_group from config.txt
+            *entry.0.entry(config_group).or_insert(0) += 1;
             
             if status == "RUNNING" || status == "PASSED" { entry.1 += 1; }
             else if status == "STOPPED" || status == "FAILED" { entry.2 += 1; }
@@ -188,7 +191,17 @@ fn render_critical_global_view(instances: Vec<HealthInstance>, query: String) ->
             if seen.insert(key) { critical_list.push(inst); }
         }
     }
-    let filtered: Vec<_> = critical_list.into_iter().filter(|inst| serde_json::to_string(&inst).unwrap_or_default().to_lowercase().contains(&query)).collect();
+    
+    // Sort critical list by Group then Managed Server Name
+    critical_list.sort_by(|a, b| {
+        a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group))
+    });
+
+    let filtered: Vec<_> = critical_list.into_iter().filter(|inst| {
+        let json = serde_json::to_string(&inst).unwrap_or_default().to_lowercase();
+        json.contains(&query)
+    }).collect();
+
     render_table(filtered)
 }
 
@@ -198,8 +211,20 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
         let key = (inst.host_name.clone().unwrap_or_default(), inst.group.clone().unwrap_or_default());
         latest_instances.insert(key, inst);
     }
-    let filtered: Vec<_> = latest_instances.into_values().filter(|inst| serde_json::to_string(&inst).unwrap_or_default().to_lowercase().contains(&query)).collect();
-    render_table(filtered)
+    
+    let mut filtered: Vec<_> = latest_instances.into_values().collect();
+    
+    // Sorting: Group (DV, PY) then Managed Server Name
+    filtered.sort_by(|a, b| {
+        a.server_group.cmp(&b.server_group).then(a.group.cmp(&b.group))
+    });
+
+    let filtered_searched: Vec<_> = filtered.into_iter().filter(|inst| {
+        let json = serde_json::to_string(&inst).unwrap_or_default().to_lowercase();
+        json.contains(&query)
+    }).collect();
+
+    render_table(filtered_searched)
 }
 
 fn render_table(filtered: Vec<HealthInstance>) -> View {
@@ -208,10 +233,11 @@ fn render_table(filtered: Vec<HealthInstance>) -> View {
             <table style="width: 100%; border-collapse: collapse; background: white; font-size: 0.85em;">
                 <thead>
                     <tr style="background-color: #004488; color: white; text-align: left;">
-                        <th style="padding: 12px;">"Raw Resource JSON"</th>
-                        <th style="padding: 12px;">"Managed Server"</th>
+                        <th style="padding: 12px;">"Group"</th>
+                        <th style="padding: 12px;">"Managed Server Instance"</th>
                         <th style="padding: 12px;">"Status"</th>
                         <th style="padding: 12px;">"Last Sync"</th>
+                        <th style="padding: 12px;">"Source Host"</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -223,10 +249,15 @@ fn render_table(filtered: Vec<HealthInstance>) -> View {
                                        else { ("#edf2f7", "#4a5568") };
                         view! {
                             <tr style="border-bottom: 1px solid #edf2f7;">
-                                <td style="padding: 12px; font-family: monospace; word-break: break-all; max-width: 500px; color: #444;">{serde_json::to_string(&inst).unwrap_or_default()}</td>
+                                <td style="padding: 12px; font-weight: bold; color: #1a202c;">{inst.server_group.clone().unwrap_or_default()}</td>
                                 <td style="padding: 12px; color: #4a5568;">{inst.group.clone().unwrap_or_default()}</td>
-                                <td style="padding: 12px;"><span style=format!("padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 800; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>{status_str}</span></td>
+                                <td style="padding: 12px;">
+                                    <span style=format!("padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: 800; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
+                                        {status_str}
+                                    </span>
+                                </td>
                                 <td style="padding: 12px; color: #718096; font-family: monospace;">{inst.last_sync.clone().unwrap_or_default()}</td>
+                                <td style="padding: 12px; color: #718096;">{inst.host_name.clone().unwrap_or_default()}</td>
                             </tr>
                         }
                     }).collect_view()}

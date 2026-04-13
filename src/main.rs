@@ -17,8 +17,13 @@ fn App() -> impl IntoView {
     let (search_query, set_search_query) = create_signal(String::new());
     let (refresh_count, set_refresh_count) = create_signal(0);
     
-    let health_data = create_resource(refresh_count, |_| async move { fetch_health_data().await });
+    // THE FIX: Wrap refresh_count.get() in a move closure
+    let health_data = create_resource(
+        move || refresh_count.get(), 
+        |_| async move { fetch_health_data().await }
+    );
 
+    // 5-minute auto-refresh
     set_interval(
         move || { set_refresh_count.update(|n| *n += 1); },
         Duration::from_millis(300_000),
@@ -31,7 +36,7 @@ fn App() -> impl IntoView {
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #004488; padding-bottom: 10px; margin-bottom: 20px;">
                     <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor"</h2>
                     <div style="font-size: 0.85em; color: #777;">
-                        "Last Sync: " {move || refresh_count.get()}
+                        "Refresh Count: " {move || refresh_count.get()}
                     </div>
                 </div>
 
@@ -92,7 +97,7 @@ fn App() -> impl IntoView {
 }
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
-    // We use a simple random query param to skip cache without needing the Utc call inside the async block
+    // Generate a random ID for cache busting without using chrono
     let cache_buster = js_sys::Math::random();
     let url = format!("./docs/dashboard_data.json?v={}", cache_buster); 
 

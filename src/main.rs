@@ -2,14 +2,15 @@ use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
 use std::time::Duration;
-//test
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
-    #[serde(default)] pub customer_name: String,
-    #[serde(default)] pub host_name: String,
-    #[serde(default, alias = "instance_name")] pub group: String,
-    #[serde(default)] pub status: String,
-    #[serde(default, alias = "timestamp")] pub last_sync: String,
+    // Fields are now Options to handle "null" or missing data in JSON
+    #[serde(default)] pub customer_name: Option<String>,
+    #[serde(default)] pub host_name: Option<String>,
+    #[serde(default, alias = "instance_name")] pub group: Option<String>,
+    #[serde(default)] pub status: Option<String>,
+    #[serde(default, alias = "timestamp")] pub last_sync: Option<String>,
 }
 
 #[component]
@@ -17,7 +18,7 @@ fn App() -> impl IntoView {
     let (search_query, set_search_query) = create_signal(String::new());
     let (refresh_count, set_refresh_count) = create_signal(0);
     
-    // THE FIX: Wrap refresh_count.get() in a move closure
+    // Resource triggers on refresh_count change
     let health_data = create_resource(
         move || refresh_count.get(), 
         |_| async move { fetch_health_data().await }
@@ -31,12 +32,12 @@ fn App() -> impl IntoView {
 
     view! {
         <div style="padding: 20px; font-family: sans-serif; background-color: #f0f4f8; min-height: 100vh;">
-            <div style="max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #004488; padding-bottom: 10px; margin-bottom: 20px;">
                     <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor"</h2>
                     <div style="font-size: 0.85em; color: #777;">
-                        "Refresh Count: " {move || refresh_count.get()}
+                        "Sync Count: " {move || refresh_count.get()}
                     </div>
                 </div>
 
@@ -65,28 +66,31 @@ fn App() -> impl IntoView {
                                     instances.into_iter()
                                         .filter(|inst| {
                                             let q = search_query.get().to_lowercase();
-                                            inst.customer_name.to_lowercase().contains(&q) || 
-                                            inst.group.to_lowercase().contains(&q)
+                                            let customer = inst.customer_name.clone().unwrap_or_default().to_lowercase();
+                                            let group = inst.group.clone().unwrap_or_default().to_lowercase();
+                                            customer.contains(&q) || group.contains(&q)
                                         })
                                         .map(|inst| {
-                                            let is_ok = inst.status == "RUNNING";
+                                            let status_str = inst.status.clone().unwrap_or_else(|| "UNKNOWN".to_string());
+                                            let is_ok = status_str == "RUNNING";
                                             let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } else { ("#fff5f5", "#742a2a") };
+                                            
                                             view! {
                                                 <tr style="border-bottom: 1px solid #edf2f7;">
-                                                    <td style="padding: 12px;"><b>{inst.customer_name}</b></td>
-                                                    <td style="padding: 12px;">{inst.host_name}</td>
-                                                    <td style="padding: 12px;">{inst.group}</td>
+                                                    <td style="padding: 12px;"><b>{inst.customer_name.unwrap_or_default()}</b></td>
+                                                    <td style="padding: 12px;">{inst.host_name.unwrap_or_default()}</td>
+                                                    <td style="padding: 12px;">{inst.group.unwrap_or_default()}</td>
                                                     <td style="padding: 12px;">
                                                         <span style=format!("padding: 4px 10px; border-radius: 20px; font-size: 0.85em; font-weight: bold; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
-                                                            {inst.status}
+                                                            {status_str}
                                                         </span>
                                                     </td>
-                                                    <td style="padding: 12px; font-size: 0.8em; color: #4a5568;">{inst.last_sync}</td>
+                                                    <td style="padding: 12px; font-size: 0.8em; color: #4a5568;">{inst.last_sync.unwrap_or_default()}</td>
                                                 </tr>
                                             }
                                         }).collect_view()
                                 },
-                                Err(e) => view! { <tr><td colspan="5" style="color: red; padding: 20px;">{format!("Fetch Error: {}", e)}</td></tr> }.into_view()
+                                Err(e) => view! { <tr><td colspan="5" style="color: red; padding: 20px;">{format!("Data Error: {}", e)}</td></tr> }.into_view()
                             })}
                         </Transition>
                     </tbody>
@@ -97,13 +101,13 @@ fn App() -> impl IntoView {
 }
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
-    // Generate a random ID for cache busting without using chrono
     let cache_buster = js_sys::Math::random();
     let url = format!("./docs/dashboard_data.json?v={}", cache_buster); 
 
     let resp = Request::get(&url).send().await.map_err(|e| e.to_string())?;
-    if !resp.ok() { return Err(format!("Status: {}", resp.status())); }
-    resp.json::<Vec<HealthInstance>>().await.map_err(|e| e.to_string())
+    if !resp.ok() { return Err(format!("HTTP Status: {}", resp.status())); }
+    
+    resp.json::<Vec<HealthInstance>>().await.map_err(|e| format!("JSON Error: {}", e))
 }
 
 fn main() {

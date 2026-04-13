@@ -14,30 +14,22 @@ jobs:
 
       - name: Fetch and Merge Data
         run: |
-          mkdir -p data_folder
-          mkdir -p docs
+          mkdir -p data_folder docs
           
-          # 1. List and Download files from OCI
+          # Use the namespace identified in your PAR URL
           LIST_URL="https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/"
+          
+          # 1. Download all current health files
           FILES=$(curl -s "$LIST_URL" | jq -r '.objects[].name | select(contains("_health.json"))')
-
           for F in $FILES; do
             curl -s "${LIST_URL}${F}" -o "data_folder/$F"
           done
 
-          # 2. Consolidate into ONE valid JSON array
-          # This prevents the "expected , or ]" syntax error in the browser
-          echo "[" > docs/dashboard_data.json
-          FIRST=true
-          for FILE in data_folder/*_health.json; do
-            if [ -s "$FILE" ]; then
-              if [ "$FIRST" = true ]; then FIRST=false; else echo "," >> docs/dashboard_data.json; fi
-              cat "$FILE" | jq -c '.[]' >> docs/dashboard_data.json
-            fi
-          done
-          echo "]" >> docs/dashboard_data.json
+          # 2. THE FIX: Merge separate files into ONE valid JSON array
+          # This removes the "expected , or ]" syntax error.
+          jq -s 'flatten' data_folder/*_health.json > docs/dashboard_data.json
           
-          # Keep a copy in root for fallback
+          # Copy to root for easy access if needed
           cp docs/dashboard_data.json dashboard_data.json
 
       - name: Commit and Push

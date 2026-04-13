@@ -6,20 +6,21 @@ use gloo_net::http::Request;
 pub struct HealthInstance {
     #[serde(default)]
     pub customer_name: String,
-
+    
     #[serde(default)]
     pub host_name: String,
-
-    // Maps "group_name" from your binary output to the Group column
-    #[serde(default, alias = "group_name", alias = "ServerGroup")]
+    
+    #[serde(default)]
     pub instance_name: String,
-
+    
     #[serde(default)]
     pub status: String,
-
-    // Maps "timestamp" or "lastSync" to the Last Update column
-    #[serde(default, alias = "timestamp", alias = "lastSync")]
+    
+    #[serde(default, alias = "timestamp")]
     pub last_sync: String,
+    
+    #[serde(default)]
+    pub details: String,
 }
 
 #[component]
@@ -78,7 +79,6 @@ fn App() -> impl IntoView {
 }
 
 async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
-    // Relative path for GitHub Pages
     let url = "./dashboard_data.json"; 
     let resp = Request::get(url).send().await.map_err(|e| e.to_string())?;
     
@@ -88,7 +88,7 @@ async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
     
     resp.json::<Vec<HealthInstance>>()
         .await
-        .map_err(|e| format!("JSON Error: {}", e))
+        .map_err(|e| format!("JSON Parse Error: {}", e))
 }
 
 fn main() { 

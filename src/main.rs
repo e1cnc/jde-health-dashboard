@@ -1,4 +1,80 @@
+use leptos::*;
+use serde::{Deserialize, Serialize};
+use gloo_net::http::Request;
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct HealthInstance {
+    #[serde(default)] pub customer_name: Option<String>,
+    #[serde(default)] pub host_name: Option<String>,
+    #[serde(default, alias = "instance_name")] pub group: Option<String>,
+    #[serde(default)] pub status: Option<String>,
+    #[serde(default, alias = "timestamp")] pub last_sync: Option<String>,
+}
+
+#[component]
+fn App() -> impl IntoView {
+    let (search_query, set_search_query) = create_signal(String::new());
+    let (selected_customer, set_selected_customer) = create_signal(None::<String>);
+    let (refresh_count, set_refresh_count) = create_signal(0);
+    
+    let health_data = create_resource(
+        move || refresh_count.get(), 
+        |_| async move { fetch_health_data().await }
+    );
+
+    set_interval(
+        move || { set_refresh_count.update(|n| *n += 1); },
+        Duration::from_millis(300_000),
+    );
+
+    view! {
+        <div style="padding: 20px; font-family: sans-serif; background-color: #f0f4f8; min-height: 100vh;">
+            <div style="max-width: 1200px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #004488; padding-bottom: 10px; margin-bottom: 20px;">
+                    <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor Dashboard"</h2>
+                    <div style="font-size: 0.85em; color: #777;">"Sync Count: " {move || refresh_count.get()}</div>
+                </div>
+
+                {move || selected_customer.get().map(|name| view! {
+                    <button 
+                        on:click=move |_| {
+                            set_selected_customer.set(None);
+                            set_search_query.set(String::new()); 
+                        }
+                        style="background: #004488; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px;"
+                    >
+                        "← Back to All Customers"
+                    </button>
+                    <h3 style="margin-bottom: 15px;">"Customer: " {name}</h3>
+                })}
+
+                <input 
+                    type="text" 
+                    placeholder="Search..." 
+                    style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccd; border-radius: 8px;"
+                    on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                    prop:value=search_query
+                />
+
+                <Transition fallback=move || view! { <p>"Loading Health Data..."</p> }>
+                    {move || health_data.get().map(|data| match data {
+                        Ok(instances) => {
+                            let query = search_query.get().to_lowercase();
+                            if let Some(customer) = selected_customer.get() {
+                                render_detail_view(instances, customer, query)
+                            } else {
+                                render_summary_view(instances, query, set_selected_customer, set_search_query)
+                            }
+                        },
+                        Err(e) => view! { <p style="color: red;">"Error: " {e}</p> }.into_view()
+                    })}
+                </Transition>
+            </div>
+        </div>
+    }
+}
 
 fn render_summary_view(
     instances: Vec<HealthInstance>, 
@@ -6,7 +82,6 @@ fn render_summary_view(
     set_selected: WriteSignal<Option<String>>,
     set_search: WriteSignal<String>
 ) -> View {
-    // Map of Customer Name -> (Unique Instance Set, Has Critical Error)
     let mut customer_stats: HashMap<String, (HashSet<(String, String)>, bool)> = HashMap::new();
     
     for inst in instances {
@@ -18,7 +93,6 @@ fn render_summary_view(
         let is_critical = status == "STOPPED" || status == "FAILED";
         let entry = customer_stats.entry(name).or_insert((HashSet::new(), false));
         
-        // Add unique tuple of (Host, Group) to the set
         entry.0.insert((host, group));
         if is_critical { entry.1 = true; }
     }
@@ -31,7 +105,7 @@ fn render_summary_view(
     view! {
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
             {sorted_customers.into_iter().map(|(name, (unique_set, has_error))| {
-                let count = unique_set.len(); // This will now correctly show 5 instead of 64
+                let count = unique_set.len(); 
                 let display_name = name.clone();
                 let bg_color = if has_error { "#fff5f5" } else { "#fafafa" };
                 let border_color = if has_error { "#feb2b2" } else { "#ddd" };
@@ -64,7 +138,6 @@ fn render_summary_view(
 }
 
 fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: String) -> View {
-    // Use  a HashMap to only keep the latest record for each unique (Host, Instance)
     let mut latest_instances: HashMap<(String, String), HealthInstance> = HashMap::new();
 
     for inst in instances.into_iter().filter(|i| i.customer_name.as_ref() == Some(&customer)) {
@@ -72,7 +145,6 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
             inst.host_name.clone().unwrap_or_default(),
             inst.group.clone().unwrap_or_default()
         );
-        // Assuming the JSON order or timestamp allows us to just take the "last" seen
         latest_instances.insert(key, inst);
     }
 
@@ -112,3 +184,18 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
         </table>
     }.into_view()
 }
+
+async fn fetch_health_data() -> Result<Vec<HealthInstance>, String> {
+    let cache_buster = js_sys::Math::random();
+    let url = format!("https://e1cnc.github.io/jde-health-dashboard/dashboard_data.json?v={}", cache_buster); 
+
+    let resp = Request::get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.ok() { return Err(format!("HTTP Status: {}", resp.status())); }
+    
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if text.is_empty() || text == "null" { return Ok(vec![]); }
+    
+    serde_json::from_str::<Vec<HealthInstance>>(&text).map_err(|e| format!("JSON Error: {}", e))
+}
+
+fn main() { mount_to_body(|| view! { <App /> }) }

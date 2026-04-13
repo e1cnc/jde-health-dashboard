@@ -396,6 +396,22 @@
     "server_group": "ACORJDETS1"
   },
   {
+    "customer_name": "ENEX",
+    "host_name": "vmjdenex050",
+    "server_group": "dev",
+    "instance_name": "CONNECTION_ERROR",
+    "status": "FAILED",
+    "timestamp": "2026-04-13T05:46:48-04:00"
+  },
+  {
+    "customer_name": "ENEX",
+    "host_name": "vmjdenex050",
+    "server_group": "psn",
+    "instance_name": "CONNECTION_ERROR",
+    "status": "FAILED",
+    "timestamp": "2026-04-13T05:47:48-04:00"
+  },
+  {
     "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed; ",
     "group_name": "dv",
     "instance_name": "DV_JAS1",

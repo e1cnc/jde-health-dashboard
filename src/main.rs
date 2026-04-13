@@ -24,21 +24,51 @@ fn App() -> impl IntoView {
         |_| async move { fetch_health_data().await }
     );
 
+    // Auto-refresh the UI every 5 minutes
     set_interval(
         move || { set_refresh_count.update(|n| *n += 1); },
         Duration::from_millis(300_000),
     );
 
     view! {
-        <div style="padding: 20px; font-family: 'Segoe UI', sans-serif; background-color: #f4f7f9; min-height: 100vh;">
-            <div style="max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
+        <div style="padding: 20px; font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f4f7f9; min-height: 100vh;">
+            <div style="max-width: 1400px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05);">
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #004488; padding-bottom: 15px; margin-bottom: 25px;">
-                    <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor Dashboard"</h2>
-                    <div style="background: #eef2f7; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold;">
-                        "Sync Count: " {move || refresh_count.get()}
+                    <div>
+                        <h2 style="color: #004488; margin: 0;">"JDE Global Health Monitor"</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 0.8em; color: #666;">"Auto-refreshing UI every 5 mins"</p>
+                    </div>
+                    <div style="background: #004488; color: white; padding: 8px 15px; border-radius: 8px; font-size: 0.9em; font-weight: bold;">
+                        "Dashboard Syncs: " {move || refresh_count.get()}
                     </div>
                 </div>
+
+                <Transition fallback=|_| ()>
+                    {move || health_data.get().map(|data| if let Ok(insts) = data {
+                        let mut unique_map = HashSet::new();
+                        let mut critical_count = 0;
+                        for i in &insts {
+                            let key = (i.host_name.clone(), i.group.clone());
+                            if unique_map.insert(key) {
+                                let s = i.status.as_deref().unwrap_or("").to_uppercase();
+                                if s == "STOPPED" || s == "FAILED" { critical_count += 1; }
+                            }
+                        }
+                        view! {
+                            <div style="display: flex; gap: 20px; margin-bottom: 30px;">
+                                <div style="flex: 1; background: #ebf8ff; padding: 20px; border-radius: 12px; border-left: 6px solid #3182ce;">
+                                    <div style="font-size: 0.85em; color: #2b6cb0; font-weight: bold; text-transform: uppercase;">"Unique Instances"</div>
+                                    <div style="font-size: 2em; font-weight: bold; color: #2c5282;">{unique_map.len()}</div>
+                                </div>
+                                <div style="flex: 1; background: #fff5f5; padding: 20px; border-radius: 12px; border-left: 6px solid #e53e3e;">
+                                    <div style="font-size: 0.85em; color: #c53030; font-weight: bold; text-transform: uppercase;">"Critical Issues"</div>
+                                    <div style="font-size: 2em; font-weight: bold; color: #9b2c2c;">{critical_count}</div>
+                                </div>
+                            </div>
+                        }.into_view()
+                    } else { view! {}.into_view() })}
+                </Transition>
 
                 {move || selected_customer.get().map(|name| {
                     let back_name = name.clone();
@@ -52,19 +82,19 @@ fn App() -> impl IntoView {
                         >
                             "← Back to Overview"
                         </button>
-                        <h3 style="margin-bottom: 20px;">"Customer Detail: " {back_name}</h3>
+                        <h3 style="margin-bottom: 20px; color: #333;">"Viewing: " {back_name}</h3>
                     }
                 })}
 
                 <input 
                     type="text" 
-                    placeholder="Search by Customer or Instance..." 
-                    style="width: 100%; padding: 14px 20px; border: 2px solid #e1e8ed; border-radius: 12px; margin-bottom: 30px;"
+                    placeholder="Filter list..." 
+                    style="width: 100%; padding: 14px 20px; border: 2px solid #e1e8ed; border-radius: 12px; margin-bottom: 30px; box-sizing: border-box;"
                     on:input=move |ev| set_search_query.set(event_target_value(&ev))
                     prop:value=search_query
                 />
 
-                <Transition fallback=move || view! { <div style="text-align: center; padding: 40px;">"Gathering metrics..."</div> }>
+                <Transition fallback=move || view! { <div style="text-align: center; padding: 40px;">"Loading data..."</div> }>
                     {move || health_data.get().map(|data| match data {
                         Ok(instances) => {
                             let query = search_query.get().to_lowercase();
@@ -74,7 +104,7 @@ fn App() -> impl IntoView {
                                 render_summary_view(instances, query, set_selected_customer, set_search_query)
                             }
                         },
-                        Err(e) => view! { <div style="color: #c53030; padding: 20px; border: 1px solid #feb2b2; border-radius: 8px;">"Data Error: " {e}</div> }.into_view()
+                        Err(e) => view! { <div style="color: #c53030; padding: 20px; border: 1px solid #feb2b2; border-radius: 8px;">"Fetch Error: " {e}</div> }.into_view()
                     })}
                 </Transition>
             </div>
@@ -88,7 +118,7 @@ fn render_summary_view(
     set_selected: WriteSignal<Option<String>>,
     set_search: WriteSignal<String>
 ) -> View {
-    let mut stats: HashMap<String, (HashSet<(String, String)>, i32, i32)> = HashMap::new();
+    let mut stats: HashMap<String, (HashSet<(String, String)>, i32, i32, i32)> = HashMap::new();
     
     for inst in instances {
         let name = inst.customer_name.clone().unwrap_or_else(|| "Unknown".into());
@@ -96,10 +126,11 @@ fn render_summary_view(
         let group = inst.group.clone().unwrap_or_else(|| "UnknownGroup".into());
         let status = inst.status.as_deref().unwrap_or("UNKNOWN").to_uppercase();
         
-        let entry = stats.entry(name).or_insert((HashSet::new(), 0, 0));
+        let entry = stats.entry(name).or_insert((HashSet::new(), 0, 0, 0));
         if entry.0.insert((host, group)) {
             if status == "RUNNING" || status == "PASSED" { entry.1 += 1; }
             else if status == "STOPPED" || status == "FAILED" { entry.2 += 1; }
+            else { entry.3 += 1; }
         }
     }
 
@@ -110,18 +141,18 @@ fn render_summary_view(
 
     view! {
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
-            {sorted_customers.into_iter().map(|(name, (unique_set, running, critical))| {
+            {sorted_customers.into_iter().map(|(name, (unique_set, running, critical, unknown))| {
                 let total = unique_set.len() as f32;
                 let running_pct = if total > 0.0 { (running as f32 / total) * 100.0 } else { 0.0 };
                 let critical_pct = if total > 0.0 { (critical as f32 / total) * 100.0 } else { 0.0 };
+                let unknown_pct = if total > 0.0 { (unknown as f32 / total) * 100.0 } else { 0.0 };
                 
-                // FIXED: Create separate clones for the closure and the view
                 let name_for_closure = name.clone();
                 let name_for_display = name.clone();
 
                 let chart_style = format!(
-                    "width: 70px; height: 70px; border-radius: 50%; background: conic-gradient(#38a169 0% {}%, #c53030 {}% {}%, #cbd5e0 {}% 100%); display: flex; align-items: center; justify-content: center;",
-                    running_pct, running_pct, running_pct + critical_pct, running_pct + critical_pct
+                    "width: 70px; height: 70px; border-radius: 50%; background: conic-gradient(#38a169 0% {}%, #c53030 {}% {}%, #cbd5e0 {}% {}%); display: flex; align-items: center; justify-content: center;",
+                    running_pct, running_pct, running_pct + critical_pct, running_pct + critical_pct, running_pct + critical_pct + unknown_pct
                 );
 
                 view! {
@@ -132,15 +163,16 @@ fn render_summary_view(
                         }
                         style=format!(
                             "padding: 24px; border: 1px solid #e1e8ed; border-radius: 16px; cursor: pointer; background: white; display: flex; align-items: center; justify-content: space-between; border-left: 6px solid {};",
-                            if critical > 0 { "#c53030" } else { "#38a169" }
+                            if critical > 0 { "#c53030" } else if unknown > 0 { "#cbd5e0" } else { "#38a169" }
                         )
                     >
                         <div>
                             <h4 style="margin: 0 0 8px 0; color: #1a202c; font-size: 1.25em;">{name_for_display}</h4>
                             <div style="font-size: 0.95em; color: #4a5568;">{unique_set.len()} " Instances"</div>
-                            <div style="margin-top: 8px; font-size: 0.85em; display: flex; gap: 12px;">
+                            <div style="margin-top: 8px; font-size: 0.85em; display: flex; gap: 8px;">
                                 <span style="color: #38a169; font-weight: bold;">"● " {running} " OK"</span>
                                 <span style="color: #c53030; font-weight: bold;">"● " {critical} " ERR"</span>
+                                {if unknown > 0 { view! { <span style="color: #718096; font-weight: bold;">"● " {unknown} " UNK"</span> }.into_view() } else { view! {}.into_view() }}
                             </div>
                         </div>
                         <div style=chart_style>
@@ -154,7 +186,7 @@ fn render_summary_view(
         </div>
     }.into_view()
 }
-//test
+
 fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: String) -> View {
     let mut latest_instances: HashMap<(String, String), HealthInstance> = HashMap::new();
     for inst in instances.into_iter().filter(|i| i.customer_name.as_ref() == Some(&customer)) {
@@ -170,27 +202,38 @@ fn render_detail_view(instances: Vec<HealthInstance>, customer: String, query: S
             <table style="width: 100%; border-collapse: collapse; background: white;">
                 <thead>
                     <tr style="background-color: #004488; color: white; text-align: left;">
-                        <th style="padding: 16px;">"Host Name"</th>
+                        <th style="padding: 16px;">"Raw JSON Data"</th>
                         <th style="padding: 16px;">"Service Instance"</th>
                         <th style="padding: 16px;">"Status"</th>
-                        <th style="padding: 16px;">"Last Heartbeat"</th>
+                        <th style="padding: 16px;">"Last Update"</th>
                     </tr>
                 </thead>
                 <tbody>
                     {filtered.into_iter().map(|inst| {
                         let status_str = inst.status.clone().unwrap_or_else(|| "UNKNOWN".into());
-                        let is_ok = status_str == "RUNNING" || status_str == "Passed";
-                        let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } else { ("#fff5f5", "#742a2a") };
+                        let status_upper = status_str.to_uppercase();
+                        let is_ok = status_upper == "RUNNING" || status_upper == "PASSED";
+                        let is_err = status_upper == "STOPPED" || status_upper == "FAILED";
+                        
+                        let (bg, fg) = if is_ok { ("#e6fffa", "#234e52") } 
+                                       else if is_err { ("#fff5f5", "#742a2a") }
+                                       else { ("#edf2f7", "#4a5568") };
+
+                        // Serialize back to JSON for the "Raw Data" column
+                        let raw_json = serde_json::to_string(&inst).unwrap_or_else(|_| "Error".into());
+
                         view! {
                             <tr style="border-bottom: 1px solid #edf2f7;">
-                                <td style="padding: 16px; font-weight: 500;">{inst.host_name.clone().unwrap_or_default()}</td>
+                                <td style="padding: 16px; font-size: 0.8em; color: #444; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace;" title=raw_json.clone()>
+                                    {raw_json}
+                                </td>
                                 <td style="padding: 16px; color: #4a5568;">{inst.group.clone().unwrap_or_default()}</td>
                                 <td style="padding: 16px;">
                                     <span style=format!("padding: 6px 12px; border-radius: 6px; font-size: 0.85em; font-weight: 800; background: {}; color: {}; border: 1px solid {};", bg, fg, fg)>
                                         {status_str}
                                     </span>
                                 </td>
-                                <td style="padding: 16px; font-size: 0.85em; color: #718096;">{inst.last_sync.clone().unwrap_or_default()}</td>
+                                <td style="padding: 16px; font-size: 0.85em; color: #718096; font-family: monospace;">{inst.last_sync.clone().unwrap_or_default()}</td>
                             </tr>
                         }
                     }).collect_view()}

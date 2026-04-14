@@ -347,7 +347,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
 
@@ -372,7 +372,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
+        <div style="height: 220px; max-width: 100%; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -633,7 +633,7 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 12px;">
+                                                <div style="display: grid; grid-template-columns: minmax(360px, 430px) minmax(420px, 1fr); gap: 12px; margin-bottom: 14px; align-items: stretch;">
                                                     <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
@@ -652,50 +652,52 @@ fn App() -> impl IntoView {
                                                         <DoughnutChart data=chart_data />
                                                     </div>
 
-                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; flex-direction: column; justify-content: center;">
-                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                                            <span style="font-weight: 900; color: #0f172a; font-size: 0.92rem;">"OVERALL HEALTH"</span>
-                                                            <span style=format!(
-                                                                "font-weight: 900; font-size: 1.05rem; color: {};",
-                                                                if health_pct > 90.0 { "#10b981" } else { "#ef4444" }
-                                                            )>
-                                                                {format!("{:.1}%", health_pct)}
-                                                            </span>
+                                                    <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
+                                                        <div style="background: white; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                                                <span style="font-weight: 800; color: #1e293b; font-size: 0.80rem;">"OVERALL HEALTH"</span>
+                                                                <span style=format!(
+                                                                    "font-weight: 900; font-size: 0.88rem; color: {};",
+                                                                    if health_pct > 90.0 { "#10b981" } else { "#ef4444" }
+                                                                )>
+                                                                    {format!("{:.1}%", health_pct)}
+                                                                </span>
+                                                            </div>
+
+                                                            <div style="background: #f1f5f9; height: 6px; border-radius: 999px; overflow: hidden;">
+                                                                <div style=format!(
+                                                                    "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
+                                                                    if health_pct > 90.0 { "#10b981" } else { "#ef4444" },
+                                                                    health_pct
+                                                                )></div>
+                                                            </div>
+
+                                                            <div style="margin-top: 6px; font-size: 0.70rem; color: #64748b;">
+                                                                {format!("{} healthy out of {} instances", total_ok, total_inst)}
+                                                            </div>
                                                         </div>
 
-                                                        <div style="background: #f1f5f9; height: 12px; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
-                                                            <div style=format!(
-                                                                "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
-                                                                if health_pct > 90.0 { "#10b981" } else { "#ef4444" },
-                                                                health_pct
-                                                            )></div>
+                                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 10px;">
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors/Failed"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
+                                                            </div>
                                                         </div>
-
-                                                        <div style="font-size: 0.82rem; color: #64748b;">
-                                                            {format!("{} healthy out of {} instances", total_ok, total_inst)}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div style="display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px;">
-                                                    <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                        <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
-                                                        <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
-                                                    </div>
-
-                                                    <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                        <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
-                                                        <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
-                                                    </div>
-
-                                                    <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                        <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
-                                                        <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
-                                                    </div>
-
-                                                    <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                        <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors/Failed"</div>
-                                                        <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
                                                     </div>
                                                 </div>
 

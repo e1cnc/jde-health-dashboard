@@ -525,25 +525,116 @@ fn App() -> impl IntoView {
                             }
                         }
                     >
-                        <div style="text-align: center; margin-bottom: 12px;">
-                            <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
-                                "JDE Environment Health Dashboard"
-                            </h2>
-                        </div>
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: auto 1fr auto;
+                                align-items: center;
+                                gap: 16px;
+                                margin-bottom: 14px;
+                                width: 100%;
+                            "
+                        >
+                            <div style="display: flex; justify-content: flex-start;">
+                                <div
+                                    style="
+                                        display: flex;
+                                        gap: 4px;
+                                        background: #e2e8f0;
+                                        padding: 4px;
+                                        border-radius: 10px;
+                                        width: fit-content;
+                                    "
+                                >
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::All)
+                                        style=move || format!(
+                                            "border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.85rem; background: {}; color: {}; white-space: nowrap;",
+                                            if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
+                                            if filter.get() == Filter::All { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "ALL"
+                                    </button>
 
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto;">
-                                <div style="min-width: 220px;">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Failed)
+                                        style=move || format!(
+                                            "border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.85rem; background: {}; color: {}; white-space: nowrap;",
+                                            if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
+                                            if filter.get() == Filter::Failed { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "FAILED"
+                                    </button>
+
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Healthy)
+                                        style=move || format!(
+                                            "border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 0.85rem; background: {}; color: {}; white-space: nowrap;",
+                                            if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
+                                            if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "HEALTHY"
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: center; min-width: 0;">
+                                <h2
+                                    style="
+                                        margin: 0;
+                                        color: #1d4ed8;
+                                        font-weight: 900;
+                                        letter-spacing: 0.3px;
+                                        font-size: 1.15rem;
+                                        text-align: center;
+                                        white-space: nowrap;
+                                    "
+                                >
+                                    "JDE Environment Health Dashboard"
+                                </h2>
+                            </div>
+
+                            <div
+                                style="
+                                    display: flex;
+                                    justify-content: flex-end;
+                                    align-items: center;
+                                    gap: 12px;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <div style="width: 330px;">
+                                    <div
+                                        style="
+                                            display: flex;
+                                            justify-content: space-between;
+                                            margin-bottom: 5px;
+                                            font-size: 0.74rem;
+                                            color: #64748b;
+                                            font-weight: 700;
+                                        "
+                                    >
                                         <span>"Auto refresh"</span>
                                         <span>{move || format!("{}s", seconds_left.get())}</span>
                                     </div>
 
-                                    <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
-                                        <div style=move || format!(
-                                            "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
-                                            refresh_pct()
-                                        )></div>
+                                    <div
+                                        style="
+                                            background: #cbd5e1;
+                                            height: 8px;
+                                            border-radius: 999px;
+                                            overflow: hidden;
+                                        "
+                                    >
+                                        <div
+                                            style=move || format!(
+                                                "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
+                                                refresh_pct()
+                                            )
+                                        ></div>
                                     </div>
                                 </div>
 
@@ -552,46 +643,21 @@ fn App() -> impl IntoView {
                                         set_seconds_left.set(REFRESH_SECONDS);
                                         health_resource.refetch();
                                     }
-                                    style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                    style="
+                                        border: none;
+                                        background: #2563eb;
+                                        color: white;
+                                        padding: 12px 18px;
+                                        border-radius: 12px;
+                                        cursor: pointer;
+                                        font-weight: 800;
+                                        font-size: 0.9rem;
+                                        white-space: nowrap;
+                                    "
                                 >
                                     "Refresh now"
                                 </button>
                             </div>
-                        </div>
-
-                        <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content; margin-bottom: 14px;">
-                            <button
-                                on:click=move |_| set_filter.set(Filter::All)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
-                                    if filter.get() == Filter::All { "white" } else { "#64748b" }
-                                )
-                            >
-                                "ALL"
-                            </button>
-
-                            <button
-                                on:click=move |_| set_filter.set(Filter::Failed)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
-                                    if filter.get() == Filter::Failed { "white" } else { "#64748b" }
-                                )
-                            >
-                                "FAILED"
-                            </button>
-
-                            <button
-                                on:click=move |_| set_filter.set(Filter::Healthy)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
-                                    if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
-                                )
-                            >
-                                "HEALTHY"
-                            </button>
                         </div>
 
                         <Transition fallback=|| view! { <p>"Processing..."</p> }>

@@ -6,7 +6,6 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use urlencoding::encode;
 use wasm_bindgen::JsValue;
 use web_sys::console;
-use std::collections::BTreeMap;
 
 const REFRESH_SECONDS: i32 = 60;
 const TICK_MS: u32 = 1000;
@@ -25,15 +24,6 @@ pub struct EnvStatus {
     pub ok: usize,
     pub err: usize,
     pub filename: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CustomerGroup {
-    pub customer: String,
-    pub total: usize,
-    pub ok: usize,
-    pub err: usize,
-    pub envs: Vec<EnvStatus>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -70,42 +60,6 @@ fn parse_customer_env(filename: &str) -> (String, String) {
     let env = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
 
     (customer, env)
-}
-
-fn group_by_customer(items: Vec<EnvStatus>, filter: Filter) -> Vec<CustomerGroup> {
-    let mut grouped: BTreeMap<String, Vec<EnvStatus>> = BTreeMap::new();
-
-    for item in items.into_iter() {
-        let include = match filter {
-            Filter::All => true,
-            Filter::Failed => item.err > 0,
-            Filter::Healthy => item.err == 0,
-        };
-
-        if include {
-            grouped.entry(item.customer.clone()).or_default().push(item);
-        }
-    }
-
-    let mut result = Vec::new();
-
-    for (customer, mut envs) in grouped {
-        envs.sort_by(|a, b| a.env_name.cmp(&b.env_name));
-
-        let total: usize = envs.iter().map(|e| e.total).sum();
-        let ok: usize = envs.iter().map(|e| e.ok).sum();
-        let err: usize = envs.iter().map(|e| e.err).sum();
-
-        result.push(CustomerGroup {
-            customer,
-            total,
-            ok,
-            err,
-            envs,
-        });
-    }
-
-    result
 }
 
 async fn fetch_json_file(filename: &str) -> Result<Vec<HealthInstance>, String> {
@@ -298,7 +252,7 @@ fn App() -> impl IntoView {
 
     view! {
         <div style="padding: 25px; background: #f8fafc; min-height: 100vh; font-family: Arial, sans-serif;">
-            <div style="max-width: 1380px; margin: auto;">
+            <div style="max-width: 1200px; margin: auto;">
                 <Show
                     when=move || selected_env.get().is_none()
                     fallback=move || {
@@ -309,7 +263,7 @@ fn App() -> impl IntoView {
                                         <>
                                             <button
                                                 on:click=move |_| set_selected_env.set(None)
-                                                style="margin-bottom: 16px; border: none; background: #1e293b; color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                style="margin-bottom: 16px; border: none; background: #2563eb; color: white; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
                                             >
                                                 "← Back to dashboard"
                                             </button>
@@ -329,21 +283,12 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap;">
-                                                    <button
-                                                        on:click=move |_| set_selected_env.set(None)
-                                                        style="border: none; background: #1e293b; color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                    >
-                                                        "← Back to dashboard"
-                                                    </button>
-
-                                                    <button
-                                                        on:click=move |_| detail_resource.refetch()
-                                                        style="border: none; background: #2563eb; color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                    >
-                                                        "Refresh selected env"
-                                                    </button>
-                                                </div>
+                                                <button
+                                                    on:click=move |_| set_selected_env.set(None)
+                                                    style="margin-bottom: 16px; border: none; background: #2563eb; color: white; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                >
+                                                    "← Back to dashboard"
+                                                </button>
 
                                                 <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                     <div style="color: #94a3b8; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">
@@ -359,7 +304,6 @@ fn App() -> impl IntoView {
                                                         <div>{format!("OK: {}", env.ok)}</div>
                                                         <div>{format!("Error: {}", env.err)}</div>
                                                         <div>{format!("Health: {:.1}%", pct)}</div>
-                                                        <div>{format!("Source: {}", env.filename)}</div>
                                                     </div>
 
                                                     <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
@@ -474,7 +418,14 @@ fn App() -> impl IntoView {
                                     0.0
                                 };
 
-                                let customer_groups = group_by_customer(items, filter.get());
+                                let filtered_items: Vec<EnvStatus> = items
+                                    .into_iter()
+                                    .filter(|item| match filter.get() {
+                                        Filter::All => true,
+                                        Filter::Failed => item.err > 0,
+                                        Filter::Healthy => item.err == 0,
+                                    })
+                                    .collect();
 
                                 view! {
                                     <>
@@ -524,123 +475,62 @@ fn App() -> impl IntoView {
                                             </div>
                                         </div>
 
-                                        <div style="display: grid; gap: 24px;">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
                                             {
-                                                customer_groups
+                                                filtered_items
                                                     .into_iter()
-                                                    .map(|group| {
-                                                        let customer_pct = if group.total > 0 {
-                                                            (group.ok as f32 / group.total as f32) * 100.0
+                                                    .map(|item| {
+                                                        let is_healthy = item.err == 0;
+                                                        let pct = if item.total > 0 {
+                                                            (item.ok as f32 / item.total as f32) * 100.0
                                                         } else {
                                                             0.0
                                                         };
 
-                                                        let customer_healthy = group.err == 0;
+                                                        let item_for_click = item.clone();
 
                                                         view! {
-                                                            <div style="background: #ffffff; border-radius: 16px; padding: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-                                                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;">
-                                                                    <div>
-                                                                        <div style="color: #94a3b8; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">
-                                                                            "Customer"
-                                                                        </div>
-                                                                        <div style="font-size: 1.5rem; font-weight: 900; color: #0f172a;">
-                                                                            {group.customer.clone()}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div style="min-width: 260px; flex: 1; max-width: 420px;">
-                                                                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px;">
-                                                                            <span style="color: #475569; font-weight: 700;">
-                                                                                {if customer_healthy { "Group Healthy" } else { "Group Errors Present" }}
-                                                                            </span>
-                                                                            <span style=format!(
-                                                                                "font-weight: 900; color: {};",
-                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
-                                                                            )>
-                                                                                {format!("{:.1}%", customer_pct)}
-                                                                            </span>
-                                                                        </div>
-
-                                                                        <div style="background: #e2e8f0; height: 9px; border-radius: 999px; overflow: hidden;">
-                                                                            <div style=format!(
-                                                                                "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
-                                                                                if customer_healthy { "#10b981" } else { "#ef4444" },
-                                                                                customer_pct
-                                                                            )></div>
-                                                                        </div>
-
-                                                                        <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.85rem; color: #64748b;">
-                                                                            <span>{format!("Envs: {}", group.envs.len())}</span>
-                                                                            <span>{format!("Total: {}", group.total)}</span>
-                                                                            <span>{format!("OK: {}", group.ok)}</span>
-                                                                            <span>{format!("Error: {}", group.err)}</span>
-                                                                        </div>
-                                                                    </div>
+                                                            <div
+                                                                on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
+                                                                style=format!(
+                                                                    "background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 4px solid {}; cursor: pointer;",
+                                                                    if is_healthy { "#10b981" } else { "#ef4444" }
+                                                                )
+                                                            >
+                                                                <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">
+                                                                    {item.customer.clone()}
                                                                 </div>
 
-                                                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px;">
-                                                                    {
-                                                                        group.envs
-                                                                            .into_iter()
-                                                                            .map(|item| {
-                                                                                let is_healthy = item.err == 0;
-                                                                                let pct = if item.total > 0 {
-                                                                                    (item.ok as f32 / item.total as f32) * 100.0
-                                                                                } else {
-                                                                                    0.0
-                                                                                };
+                                                                <div style="color: #1e293b; font-size: 1.4rem; font-weight: 900; margin-bottom: 15px;">
+                                                                    {item.env_name.clone()}
+                                                                </div>
 
-                                                                                let item_for_click = item.clone();
+                                                                <div style="display: grid; gap: 6px; margin-bottom: 14px; font-size: 0.85rem; color: #475569;">
+                                                                    <div>{format!("Total: {}", item.total)}</div>
+                                                                    <div>{format!("OK: {}", item.ok)}</div>
+                                                                    <div>{format!("Error: {}", item.err)}</div>
+                                                                </div>
 
-                                                                                view! {
-                                                                                    <div
-                                                                                        on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
-                                                                                        style=format!(
-                                                                                            "background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); border-top: 4px solid {}; cursor: pointer;",
-                                                                                            if is_healthy { "#10b981" } else { "#ef4444" }
-                                                                                        )
-                                                                                    >
-                                                                                        <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">
-                                                                                            {item.customer.clone()}
-                                                                                        </div>
+                                                                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 15px;">
+                                                                    <div>
+                                                                        <div style=format!(
+                                                                            "font-weight: 800; font-size: 0.8rem; color: {};",
+                                                                            if is_healthy { "#059669" } else { "#dc2626" }
+                                                                        )>
+                                                                            {if is_healthy { "HEALTHY" } else { "ERROR" }}
+                                                                        </div>
 
-                                                                                        <div style="color: #1e293b; font-size: 1.4rem; font-weight: 900; margin-bottom: 15px;">
-                                                                                            {item.env_name.clone()}
-                                                                                        </div>
+                                                                        <div style="font-size: 0.75rem; color: #64748b;">
+                                                                            {format!("{}/{} OK", item.ok, item.total)}
+                                                                        </div>
+                                                                    </div>
 
-                                                                                        <div style="display: grid; gap: 6px; margin-bottom: 14px; font-size: 0.85rem; color: #475569;">
-                                                                                            <div>{format!("Total: {}", item.total)}</div>
-                                                                                            <div>{format!("OK: {}", item.ok)}</div>
-                                                                                            <div>{format!("Error: {}", item.err)}</div>
-                                                                                        </div>
-
-                                                                                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 15px;">
-                                                                                            <div>
-                                                                                                <div style=format!(
-                                                                                                    "font-weight: 800; font-size: 0.8rem; color: {};",
-                                                                                                    if is_healthy { "#059669" } else { "#dc2626" }
-                                                                                                )>
-                                                                                                    {if is_healthy { "HEALTHY" } else { "ERROR" }}
-                                                                                                </div>
-
-                                                                                                <div style="font-size: 0.75rem; color: #64748b;">
-                                                                                                    {format!("{}/{} OK", item.ok, item.total)}
-                                                                                                </div>
-                                                                                            </div>
-
-                                                                                            <div style=format!(
-                                                                                                "font-size: 1.6rem; font-weight: 900; color: {};",
-                                                                                                if is_healthy { "#10b981" } else { "#ef4444" }
-                                                                                            )>
-                                                                                                {format!("{:.0}%", pct)}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                }
-                                                                            })
-                                                                            .collect_view()
-                                                                    }
+                                                                    <div style=format!(
+                                                                        "font-size: 1.6rem; font-weight: 900; color: {};",
+                                                                        if is_healthy { "#10b981" } else { "#ef4444" }
+                                                                    )>
+                                                                        {format!("{:.0}%", pct)}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         }

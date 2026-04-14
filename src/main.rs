@@ -709,7 +709,7 @@ fn App() -> impl IntoView {
                                                                 let env_count = group.envs.len();
 
                                                                 view! {
-                                                                    <div style="background: #ffffff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 100%; display: flex; flex-direction: column;">
+                                                                    <div style="background: #ffffff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; flex-direction: column;">
                                                                         <div>
                                                                             <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                 "CUSTOMER"

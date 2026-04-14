@@ -348,7 +348,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("58%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
 
         let config = js_sys::Object::new();
@@ -372,7 +372,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 260px; position: relative;">
+        <div style="height: 180px; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -525,7 +525,7 @@ fn App() -> impl IntoView {
                     >
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
                             <h2 style="margin: 0; color: #0f172a; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
-                                "JDE GLOBAL MONITOR"
+                                "JDE Environment Health Dashboard"
                             </h2>
 
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">

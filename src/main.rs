@@ -17,7 +17,7 @@ pub struct EnvStatus {
     pub err: usize,
 }
 
-// Matches the OCI List API structure verified in your browser
+// Ensure fields match the OCI JSON structure exactly
 #[derive(Deserialize, Debug)]
 pub struct OCIObject { 
     pub name: String 
@@ -36,8 +36,8 @@ const LIST_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p
 async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let mut results = Vec::new();
 
-    // 1. Fetch the list of objects from the bucket
-    let resp = Request::get(LIST_API_URL)
+    // 1. Fetch Object List with query parameters to force JSON
+    let resp = Request::get(&format!("{}?format=json", LIST_API_URL))
         .header("Accept", "application/json")
         .send()
         .await
@@ -47,14 +47,15 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         return Err(format!("OCI Server Error: Status {}", resp.status()));
     }
 
-    // Capture text first to allow for detailed error logging if parsing fails
+    // Capture raw text for debugging and parsing
     let body_text = resp.text().await.map_err(|_| "Could not read response body")?;
     
+    // Attempt to parse the JSON list
     let list_data: OCIListResponse = serde_json::from_str(&body_text)
         .map_err(|e| {
-            // Logs the error and the actual JSON body to the F12 Browser Console
+            // Log to F12 Console for troubleshooting
             web_sys::console::log_1(&format!("JSON Parse Error: {}. Body: {}", e, body_text).into());
-            format!("Mapping Error: {}. Check browser console (F12) for details.", e)
+            format!("Mapping Error: {}. Check browser console for raw API output.", e)
         })?;
 
     // 2. Filter for files ending in _latest.json
@@ -68,7 +69,6 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         
         if let Ok(file_resp) = Request::get(&file_url).send().await {
             if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
-                // Split filename (e.g., "LSJJNEWTR_dv_latest.json") to get labels
                 let parts: Vec<&str> = filename.split('_').collect();
                 let customer = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
                 let group = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
@@ -91,9 +91,8 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         }
     }
 
-    if results.is_empty() { return Err("No valid _latest.json files found in bucket.".to_string()); }
+    if results.is_empty() { return Err("Dashboard online, but no health files found in bucket.".to_string()); }
     
-    // Sort by customer name for alphabetical display
     results.sort_by(|a, b| a.customer.cmp(&b.customer));
     Ok(results)
 }
@@ -101,7 +100,7 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
 #[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
-    let health_data = create_resource(|| (), |_| async move { fetch_dynamic_jde_health() .await });
+    let health_data = create_resource(|| (), |_| async move { fetch_dynamic_jde_health().await });
 
     view! {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
@@ -128,7 +127,7 @@ fn App() -> impl IntoView {
                         Err(e) => view! { 
                             <div style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 20px; border-radius: 12px; font-weight: 600;">
                                 {e}
-                                <p style="font-size: 0.8rem; margin-top: 10px; color: #7f1d1d;">"Check F12 Console for raw API response data."</p>
+                                <p style="font-size: 0.8rem; margin-top: 10px; color: #7f1d1d;">"Troubleshooting: If console shows XML, check Bucket Visibility and Listing settings."</p>
                             </div> 
                         }.into_view(),
                         Ok(items) => {

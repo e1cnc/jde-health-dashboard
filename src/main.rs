@@ -319,22 +319,22 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("backgroundColor"), &colors_js);
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderColor"), &JsValue::from_str("#ffffff"));
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderWidth"), &JsValue::from_f64(2.0));
-        let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("hoverOffset"), &JsValue::from_f64(8.0));
+        let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("hoverOffset"), &JsValue::from_f64(6.0));
 
         let datasets = js_sys::Array::new();
         datasets.push(&dataset);
         let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
 
         let font_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&font_obj, &JsValue::from_str("size"), &JsValue::from_f64(11.0));
+        let _ = js_sys::Reflect::set(&font_obj, &JsValue::from_str("size"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&font_obj, &JsValue::from_str("weight"), &JsValue::from_str("600"));
 
         let legend_labels = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("usePointStyle"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(9.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(9.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
@@ -347,8 +347,8 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("68%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
 
         let config = js_sys::Object::new();
@@ -372,7 +372,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 220px; max-width: 100%; margin: 0 auto; position: relative;">
+        <div style="height: 110px; max-width: 220px; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -525,12 +525,16 @@ fn App() -> impl IntoView {
                             }
                         }
                     >
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;">
-                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
-                                    "JDE Environment Health Dashboard"
-                                </h2>
-
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr auto 1fr;
+                                align-items: center;
+                                gap: 12px;
+                                margin-bottom: 12px;
+                            "
+                        >
+                            <div style="display: flex; justify-content: flex-start;">
                                 <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content;">
                                     <button
                                         on:click=move |_| set_filter.set(Filter::All)
@@ -567,30 +571,48 @@ fn App() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                <div style="min-width: 220px;">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
-                                        <span>"Auto refresh"</span>
-                                        <span>{move || format!("{}s", seconds_left.get())}</span>
-                                    </div>
-
-                                    <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
-                                        <div style=move || format!(
-                                            "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
-                                            refresh_pct()
-                                        )></div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    on:click=move |_| {
-                                        set_seconds_left.set(REFRESH_SECONDS);
-                                        health_resource.refetch();
-                                    }
-                                    style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                            <div style="display: flex; justify-content: center;">
+                                <h2
+                                    style="
+                                        margin: 0;
+                                        color: #1d4ed8;
+                                        font-weight: 900;
+                                        letter-spacing: 0.3px;
+                                        font-size: 1.1rem;
+                                        text-align: center;
+                                        white-space: nowrap;
+                                    "
                                 >
-                                    "Refresh now"
-                                </button>
+                                    "JDE Environment Health Dashboard"
+                                </h2>
+                            </div>
+
+                            <div style="display: flex; justify-content: flex-end;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="min-width: 220px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
+                                            <span>"Auto refresh"</span>
+                                            <span>{move || format!("{}s", seconds_left.get())}</span>
+                                        </div>
+
+                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
+                                            <div style=move || format!(
+                                                "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
+                                                refresh_pct()
+                                            )></div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        on:click=move |_| {
+                                            set_seconds_left.set(REFRESH_SECONDS);
+                                            health_resource.refetch();
+                                        }
+                                        style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                    >
+                                        "Refresh now"
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -633,18 +655,18 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(360px, 430px) minmax(420px, 1fr); gap: 12px; margin-bottom: 14px; align-items: stretch;">
-                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+                                                <div style="display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 10px; margin-bottom: 14px; align-items: stretch;">
+                                                    <div style="background: white; border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
-                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
+                                                                <div style="color: #94a3b8; font-size: 0.66rem; font-weight: 800; text-transform: uppercase;">
                                                                     "Customer Distribution"
                                                                 </div>
-                                                                <div style="color: #0f172a; font-size: 0.92rem; font-weight: 900; margin-top: 4px;">
+                                                                <div style="color: #0f172a; font-size: 0.88rem; font-weight: 900; margin-top: 3px;">
                                                                     "Instances by customer"
                                                                 </div>
                                                             </div>
-                                                            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700;">
+                                                            <div style="font-size: 0.70rem; color: #64748b; font-weight: 700;">
                                                                 {format!("{} customers", total_customers)}
                                                             </div>
                                                         </div>
@@ -652,19 +674,39 @@ fn App() -> impl IntoView {
                                                         <DoughnutChart data=chart_data />
                                                     </div>
 
-                                                    <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
-                                                        <div style="background: white; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                    <div style="display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 10px;">
+                                                        <div style="background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.62rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
+                                                            <div style="font-size: 1.15rem; font-weight: 900; color: #0f172a; margin-top: 4px;">{total_customers}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.62rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
+                                                            <div style="font-size: 1.15rem; font-weight: 900; color: #0f172a; margin-top: 4px;">{total_inst}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.62rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                            <div style="font-size: 1.15rem; font-weight: 900; color: #10b981; margin-top: 4px;">{total_ok}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.62rem; font-weight: 800; text-transform: uppercase;">"Errors/Failed"</div>
+                                                            <div style="font-size: 1.15rem; font-weight: 900; color: #ef4444; margin-top: 4px;">{total_err}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); grid-column: 1 / -1;">
                                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                                                 <span style="font-weight: 800; color: #1e293b; font-size: 0.80rem;">"OVERALL HEALTH"</span>
                                                                 <span style=format!(
-                                                                    "font-weight: 900; font-size: 0.88rem; color: {};",
+                                                                    "font-weight: 900; font-size: 0.90rem; color: {};",
                                                                     if health_pct > 90.0 { "#10b981" } else { "#ef4444" }
                                                                 )>
                                                                     {format!("{:.1}%", health_pct)}
                                                                 </span>
                                                             </div>
 
-                                                            <div style="background: #f1f5f9; height: 6px; border-radius: 999px; overflow: hidden;">
+                                                            <div style="background: #f1f5f9; height: 8px; border-radius: 999px; overflow: hidden;">
                                                                 <div style=format!(
                                                                     "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
                                                                     if health_pct > 90.0 { "#10b981" } else { "#ef4444" },
@@ -676,32 +718,10 @@ fn App() -> impl IntoView {
                                                                 {format!("{} healthy out of {} instances", total_ok, total_inst)}
                                                             </div>
                                                         </div>
-
-                                                        <div style="display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 10px;">
-                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
-                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
-                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
-                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors/Failed"</div>
-                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 12px; align-items: stretch;">
+                                                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start;">
                                                     {
                                                         customer_groups
                                                             .into_iter()
@@ -711,17 +731,17 @@ fn App() -> impl IntoView {
                                                                 let env_count = group.envs.len();
 
                                                                 view! {
-                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 420px; display: flex; flex-direction: column;">
+                                                                    <div style="background: #ffffff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 100%; display: flex; flex-direction: column;">
                                                                         <div>
                                                                             <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                 "CUSTOMER"
                                                                             </div>
 
-                                                                            <div style="font-size: 0.98rem; font-weight: 900; color: #0f172a; line-height: 1.15; margin-bottom: 10px;">
+                                                                            <div style="font-size: 0.98rem; font-weight: 900; color: #0f172a; line-height: 1.15; margin-bottom: 8px;">
                                                                                 {group.customer.clone()}
                                                                             </div>
 
-                                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+                                                                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;">
                                                                                 {
                                                                                     group.envs
                                                                                         .into_iter()
@@ -734,7 +754,7 @@ fn App() -> impl IntoView {
                                                                                                 <div
                                                                                                     on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
                                                                                                     style=format!(
-                                                                                                        "background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer; min-height: 205px; display: flex; flex-direction: column;",
+                                                                                                        "background: #fff; border-radius: 9px; padding: 9px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer;",
                                                                                                         if is_healthy { "#10b981" } else { "#ef4444" }
                                                                                                     )
                                                                                                 >
@@ -752,7 +772,7 @@ fn App() -> impl IntoView {
                                                                                                         <div>{format!("Err: {}", item.err)}</div>
                                                                                                     </div>
 
-                                                                                                    <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 7px;">
+                                                                                                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 7px;">
                                                                                                         <div>
                                                                                                             <div style=format!(
                                                                                                                 "font-weight: 800; font-size: 0.62rem; color: {};",
@@ -781,11 +801,11 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="margin-top: auto; padding-top: 12px;">
-                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #e2e8f0;">
+                                                                        <div style="margin-top: auto; padding-top: 10px;">
+                                                                            <div style="background: #f8fafc; border-radius: 9px; padding: 9px; border: 1px solid #e2e8f0;">
                                                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
                                                                                     <span style="font-size: 0.70rem; font-weight: 800; color: #334155;">
-                                                                                        {format!("Group Errors / {} envs", env_count)}
+                                                                                        {format!("Server Group Errors / {} envs", env_count)}
                                                                                     </span>
 
                                                                                     <span style=format!(

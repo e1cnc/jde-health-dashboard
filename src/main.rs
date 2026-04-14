@@ -526,7 +526,7 @@ fn App() -> impl IntoView {
                         }
                     >
                         <div style="text-align: center; margin-bottom: 12px;">
-                            <h2 style="margin: 0; color: #2563eb; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
+                            <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
                                 "JDE Environment Health Dashboard"
                             </h2>
                         </div>
@@ -699,7 +699,7 @@ fn App() -> impl IntoView {
                                                     </div>
                                                 </div>
 
-                                                <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start;">
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 12px; align-items: stretch;">
                                                     {
                                                         customer_groups
                                                             .into_iter()

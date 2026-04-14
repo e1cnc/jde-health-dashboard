@@ -17,44 +17,61 @@ pub struct EnvStatus {
     pub err: usize,
 }
 
-// OCI API Response Structures
-#[derive(Deserialize)]
-struct OCIObject { name: String }
-#[derive(Deserialize)]
-struct OCIListResponse { objects: Vec<OCIObject> }
+// Matches the OCI List API structure verified in your browser
+#[derive(Deserialize, Debug)]
+pub struct OCIObject { 
+    pub name: String 
+}
+
+#[derive(Deserialize, Debug)]
+pub struct OCIListResponse { 
+    pub objects: Vec<OCIObject> 
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum Filter { All, Failed, Healthy }
 
-const BASE_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
+const LIST_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
 async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let mut results = Vec::new();
 
-    // 1. List objects to discover files
-    let list_url = format!("{}/o", BASE_API_URL);
-    let list_resp = Request::get(&list_url)
+    // 1. Fetch the list of objects from the bucket
+    let resp = Request::get(LIST_API_URL)
+        .header("Accept", "application/json")
         .send()
         .await
-        .map_err(|_| "Failed to list bucket objects")?
-        .json::<OCIListResponse>()
-        .await
-        .map_err(|_| "Invalid response from OCI List API")?;
+        .map_err(|e| format!("Network failure: {}", e))?;
 
-    // 2. Filter for files following the {Customer}_{Group}_latest.json pattern
-    let target_files: Vec<String> = list_resp.objects.into_iter()
+    if !resp.ok() {
+        return Err(format!("OCI Server Error: Status {}", resp.status()));
+    }
+
+    // Capture text first to allow for detailed error logging if parsing fails
+    let body_text = resp.text().await.map_err(|_| "Could not read response body")?;
+    
+    let list_data: OCIListResponse = serde_json::from_str(&body_text)
+        .map_err(|e| {
+            // Logs the error and the actual JSON body to the F12 Browser Console
+            web_sys::console::log_1(&format!("JSON Parse Error: {}. Body: {}", e, body_text).into());
+            format!("Mapping Error: {}. Check browser console (F12) for details.", e)
+        })?;
+
+    // 2. Filter for files ending in _latest.json
+    let target_files: Vec<String> = list_data.objects.into_iter()
         .map(|obj| obj.name)
         .filter(|name| name.ends_with("_latest.json"))
         .collect();
 
     for filename in target_files {
-        let file_url = format!("{}/o/{}", BASE_API_URL, filename);
+        let file_url = format!("https://objectstorage.us-ashburn-1.oraclecloud.com/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/{}", filename);
         
-        if let Ok(resp) = Request::get(&file_url).send().await {
-            if let Ok(instances) = resp.json::<Vec<HealthInstance>>().await {
+        if let Ok(file_resp) = Request::get(&file_url).send().await {
+            if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
+                // Split filename (e.g., "LSJJNEWTR_dv_latest.json") to get labels
                 let parts: Vec<&str> = filename.split('_').collect();
                 let customer = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
-                let group = parts.get(1).unwrap_or(&"UNKNOWN").to_string();
+                let group = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
 
                 let (mut ok, mut err) = (0, 0);
                 for inst in &instances {
@@ -74,14 +91,17 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         }
     }
 
-    if results.is_empty() { return Err("No health data files found in bucket.".to_string()); }
+    if results.is_empty() { return Err("No valid _latest.json files found in bucket.".to_string()); }
+    
+    // Sort by customer name for alphabetical display
+    results.sort_by(|a, b| a.customer.cmp(&b.customer));
     Ok(results)
 }
 
 #[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
-    let health_data = create_resource(|| (), |_| async move { fetch_dynamic_jde_health().await });
+    let health_data = create_resource(|| (), |_| async move { fetch_dynamic_jde_health() .await });
 
     view! {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
@@ -89,23 +109,28 @@ fn App() -> impl IntoView {
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
                     <div>
-                        <h2 style="margin: 0; color: #0f172a; font-weight: 800;">"JDE GLOBAL MONITOR"</h2>
-                        <p style="margin: 5px 0 0 0; font-size: 0.7rem; color: #64748b; font-weight: 700;">"AUTO-DISCOVERY ACTIVE"</p>
+                        <h2 style="margin: 0; color: #0f172a; font-weight: 800; font-size: 1.8rem;">"JDE GLOBAL MONITOR"</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 0.75rem; color: #64748b; font-weight: 700;">"AUTO-DISCOVERY ACTIVE"</p>
                     </div>
                     
                     <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0;">
                         <button on:click=move |_| set_filter.set(Filter::All)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::All { "#1e293b" } else { "transparent" }, if filter.get() == Filter::All { "white" } else { "#64748b" })>"ALL"</button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; background: {}; color: {};", if filter.get() == Filter::All { "#1e293b" } else { "transparent" }, if filter.get() == Filter::All { "white" } else { "#64748b" })>"ALL"</button>
                         <button on:click=move |_| set_filter.set(Filter::Failed)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" }, if filter.get() == Filter::Failed { "white" } else { "#64748b" })>"FAILED"</button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; background: {}; color: {};", if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" }, if filter.get() == Filter::Failed { "white" } else { "#64748b" })>"FAILED"</button>
                         <button on:click=move |_| set_filter.set(Filter::Healthy)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" }, if filter.get() == Filter::Healthy { "white" } else { "#64748b" })>"HEALTHY"</button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; background: {}; color: {};", if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" }, if filter.get() == Filter::Healthy { "white" } else { "#64748b" })>"HEALTHY"</button>
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <p style="color: #64748b; font-weight: 700;">"Scanning OCI Bucket..."</p> }>
+                <Transition fallback=|| view! { <p style="color: #64748b; font-weight: 700;">"Scanning OCI Storage..."</p> }>
                     {move || health_data.get().map(|res| match res {
-                        Err(e) => view! { <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 8px;">{e}</div> }.into_view(),
+                        Err(e) => view! { 
+                            <div style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 20px; border-radius: 12px; font-weight: 600;">
+                                {e}
+                                <p style="font-size: 0.8rem; margin-top: 10px; color: #7f1d1d;">"Check F12 Console for raw API response data."</p>
+                            </div> 
+                        }.into_view(),
                         Ok(items) => {
                             let filtered: Vec<_> = items.into_iter().filter(|item| {
                                 match filter.get() {
@@ -116,22 +141,21 @@ fn App() -> impl IntoView {
                             }).collect();
 
                             view! {
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
                                     {filtered.into_iter().map(|item| {
                                         let is_healthy = item.err == 0;
                                         view! {
-                                            <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 5px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
-                                                <div style="font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase;">{item.customer}</div>
-                                                <div style="font-size: 1.2rem; font-weight: 900; color: #1e293b; margin-bottom: 12px;">{item.server_group}</div>
-                                                
-                                                <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+                                            <div style=format!("background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 6px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
+                                                <div style="font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase;">{item.customer}</div>
+                                                <div style="font-size: 1.4rem; font-weight: 900; color: #1e293b; margin-bottom: 15px;">{item.server_group}</div>
+                                                <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f1f5f9; padding-top: 12px;">
                                                     <div>
-                                                        <div style=format!("font-size: 0.8rem; font-weight: 800; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>
-                                                            {if is_healthy { "HEALTHY" } else { "ERROR" }}
+                                                        <div style=format!("font-size: 0.85rem; font-weight: 800; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>
+                                                            {if is_healthy { "HEALTHY" } else { "ACTION REQUIRED" }}
                                                         </div>
-                                                        <div style="font-size: 0.75rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
+                                                        <div style="font-size: 0.8rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
                                                     </div>
-                                                    <div style=format!("font-size: 1.35rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
+                                                    <div style=format!("font-size: 1.6rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
                                                         {format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}
                                                     </div>
                                                 </div>
@@ -148,7 +172,6 @@ fn App() -> impl IntoView {
     }
 }
 
-// THE MISSING MAIN FUNCTION
 fn main() {
     mount_to_body(|| view! { <App /> })
 }

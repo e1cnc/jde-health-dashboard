@@ -525,14 +525,49 @@ fn App() -> impl IntoView {
                             }
                         }
                     >
-                        <div style="text-align: center; margin-bottom: 12px;">
-                            <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
-                                "JDE Environment Health Dashboard"
-                            </h2>
-                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
+                                    "JDE Environment Health Dashboard"
+                                </h2>
 
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto;">
+                                <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content;">
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::All)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
+                                            if filter.get() == Filter::All { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "ALL"
+                                    </button>
+
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Failed)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
+                                            if filter.get() == Filter::Failed { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "FAILED"
+                                    </button>
+
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Healthy)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
+                                            if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "HEALTHY"
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                                 <div style="min-width: 220px;">
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
                                         <span>"Auto refresh"</span>
@@ -557,41 +592,6 @@ fn App() -> impl IntoView {
                                     "Refresh now"
                                 </button>
                             </div>
-                        </div>
-
-                        <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content; margin-bottom: 14px;">
-                            <button
-                                on:click=move |_| set_filter.set(Filter::All)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
-                                    if filter.get() == Filter::All { "white" } else { "#64748b" }
-                                )
-                            >
-                                "ALL"
-                            </button>
-
-                            <button
-                                on:click=move |_| set_filter.set(Filter::Failed)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
-                                    if filter.get() == Filter::Failed { "white" } else { "#64748b" }
-                                )
-                            >
-                                "FAILED"
-                            </button>
-
-                            <button
-                                on:click=move |_| set_filter.set(Filter::Healthy)
-                                style=move || format!(
-                                    "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
-                                    if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
-                                    if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
-                                )
-                            >
-                                "HEALTHY"
-                            </button>
                         </div>
 
                         <Transition fallback=|| view! { <p>"Processing..."</p> }>
@@ -709,17 +709,17 @@ fn App() -> impl IntoView {
                                                                 let env_count = group.envs.len();
 
                                                                 view! {
-                                                                    <div style="background: #ffffff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; flex-direction: column;">
+                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 420px; display: flex; flex-direction: column;">
                                                                         <div>
                                                                             <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                 "CUSTOMER"
                                                                             </div>
 
-                                                                            <div style="font-size: 0.98rem; font-weight: 900; color: #0f172a; line-height: 1.15; margin-bottom: 8px;">
+                                                                            <div style="font-size: 0.98rem; font-weight: 900; color: #0f172a; line-height: 1.15; margin-bottom: 10px;">
                                                                                 {group.customer.clone()}
                                                                             </div>
 
-                                                                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;">
+                                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
                                                                                 {
                                                                                     group.envs
                                                                                         .into_iter()
@@ -732,7 +732,7 @@ fn App() -> impl IntoView {
                                                                                                 <div
                                                                                                     on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
                                                                                                     style=format!(
-                                                                                                        "background: #fff; border-radius: 9px; padding: 9px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer;",
+                                                                                                        "background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer; min-height: 205px; display: flex; flex-direction: column;",
                                                                                                         if is_healthy { "#10b981" } else { "#ef4444" }
                                                                                                     )
                                                                                                 >
@@ -750,7 +750,7 @@ fn App() -> impl IntoView {
                                                                                                         <div>{format!("Err: {}", item.err)}</div>
                                                                                                     </div>
 
-                                                                                                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 7px;">
+                                                                                                    <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 7px;">
                                                                                                         <div>
                                                                                                             <div style=format!(
                                                                                                                 "font-weight: 800; font-size: 0.62rem; color: {};",
@@ -779,8 +779,8 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="margin-top: auto; padding-top: 10px;">
-                                                                            <div style="background: #f8fafc; border-radius: 9px; padding: 9px; border: 1px solid #e2e8f0;">
+                                                                        <div style="margin-top: auto; padding-top: 12px;">
+                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #e2e8f0;">
                                                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
                                                                                     <span style="font-size: 0.70rem; font-weight: 800; color: #334155;">
                                                                                         {format!("Group Errors / {} envs", env_count)}

@@ -1,7 +1,6 @@
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
-use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
@@ -9,133 +8,118 @@ pub struct HealthInstance {
     pub health_status: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct GroupStatus {
-    pub name: String,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct EnvStatus {
+    pub customer: String,
+    pub env_name: String,
     pub total: usize,
     pub ok: usize,
     pub err: usize,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct CustomerSummary {
-    pub name: String,
-    pub groups: BTreeMap<String, GroupStatus>,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Filter { All, Failed, Healthy }
 
-async fn fetch_all_jde_data() -> Result<BTreeMap<String, CustomerSummary>, String> {
-    let mut customers: BTreeMap<String, CustomerSummary> = BTreeMap::new();
+async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
+    let mut results = Vec::new();
     
-    // Explicitly listing all environment targets for both customers
+    // Updated targets with correct uppercase 'PY' for OCI Object Storage case-sensitivity
     let targets = vec![
-       ("LSJJNEWTR", "DV", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJNEWTR_dv_latest.json"),
+         ("LSJJNEWTR", "DV", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJNEWTR_dv_latest.json"),
         ("LSJJNEWTR", "PY", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJNEWTR_py_latest.json"),
         ("LSJJOLDTR", "PS", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJOLDTR_ps_latest.json"),
-        ("LSJJOLDTR", "PY", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJOLDTR_py_latest.json"),
+        ("LSJJOLDTR", "PY", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJOLDTR_PY_latest.json"),
     ];
 
-    for (c_name, g_name, url) in targets {
+    for (cust, env, url) in targets {
         if let Ok(resp) = Request::get(url).send().await {
             if let Ok(instances) = resp.json::<Vec<HealthInstance>>().await {
-                let cust = customers.entry(c_name.to_string()).or_insert(CustomerSummary {
-                    name: c_name.to_string(),
-                    groups: BTreeMap::new(),
-                });
-
-                let mut ok_count = 0;
-                let mut err_count = 0;
+                let mut ok = 0;
+                let mut err = 0;
 
                 for inst in &instances {
                     let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
                     let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
-                    if s == "RUNNING" && h == "passed" { ok_count += 1; } else { err_count += 1; }
+                    // Status logic: RUNNING and passed
+                    if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
                 }
 
-                cust.groups.insert(g_name.to_string(), GroupStatus {
-                    name: g_name.to_string(),
+                results.push(EnvStatus {
+                    customer: cust.to_string(),
+                    env_name: env.to_string(),
                     total: instances.len(),
-                    ok: ok_count,
-                    err: err_count,
+                    ok,
+                    err,
                 });
             }
         }
     }
     
-    if customers.is_empty() { return Err("Unable to load health data".to_string()); }
-    Ok(customers)
+    if results.is_empty() { return Err("No data retrieved. Verify CORS and OCI paths.".to_string()); }
+    Ok(results)
 }
 
 #[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
-    let health_resource = create_resource(|| (), |_| async move { fetch_all_jde_data().await });
+    let health_data = create_resource(|| (), |_| async move { fetch_jde_health_data().await });
 
     view! {
-        <div style="padding: 30px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
-            <div style="max-width: 1200px; margin: auto;">
+        <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif;">
+            <div style="max-width: 1100px; margin: auto;">
                 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                    <h1 style="margin: 0; color: #0f172a; font-weight: 900; font-size: 1.8em;">"JDE HEALTH DASHBOARD"</h1>
-                    <div style="display: flex; background: white; padding: 4px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                        <button on:click=move |_| set_filter.set(Filter::All) 
-                                style=move || format!("border: none; padding: 8px 16px; border-radius: 6px; font-weight: 800; cursor: pointer; transition: 0.2s; background: {}; color: {};", if filter.get() == Filter::All { "#1e293b" } else { "transparent" }, if filter.get() == Filter::All { "white" } else { "#64748b" })>"ALL"</button>
-                        <button on:click=move |_| set_filter.set(Filter::Failed) 
-                                style=move || format!("border: none; padding: 8px 16px; border-radius: 6px; font-weight: 800; cursor: pointer; transition: 0.2s; background: {}; color: {};", if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" }, if filter.get() == Filter::Failed { "white" } else { "#64748b" })>"FAILED"</button>
-                        <button on:click=move |_| set_filter.set(Filter::Healthy) 
-                                style=move || format!("border: none; padding: 8px 16px; border-radius: 6px; font-weight: 800; cursor: pointer; transition: 0.2s; background: {}; color: {};", if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" }, if filter.get() == Filter::Healthy { "white" } else { "#64748b" })>"HEALTHY"</button>
+                // Header & Controls
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.025em;">"JDE HEALTH DASHBOARD"</h2>
+                    
+                    <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        {move || vec![Filter::All, Filter::Failed, Filter::Healthy].into_iter().map(|f| {
+                            let label = match f { Filter::All => "ALL", Filter::Failed => "FAILED", Filter::Healthy => "HEALTHY" };
+                            let is_active = filter.get() == f;
+                            view! {
+                                <button on:click=move |_| set_filter.set(f)
+                                    style=format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; transition: all 0.2s; background: {}; color: {}; shadow: {};", 
+                                        if is_active { "#1e293b" } else { "transparent" },
+                                        if is_active { "white" } else { "#64748b" },
+                                        if is_active { "0 1px 3px rgba(0,0,0,0.1)" } else { "none" })>
+                                    {label}
+                                </button>
+                            }
+                        }).collect_view()}
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <p>"Syncing with OCI Storage..."</p> }>
-                    {move || match health_resource.get() {
-                        None => view! { <p>"Loading..."</p> }.into_view(),
-                        Some(Err(e)) => view! { <p style="color: #ef4444;">{format!("Error: {}", e)}</p> }.into_view(),
-                        Some(Ok(data)) => {
-                            let total_ok: usize = data.values().flat_map(|c| c.groups.values().map(|g| g.ok)).sum();
-                            let total_err: usize = data.values().flat_map(|c| c.groups.values().map(|g| g.err)).sum();
-                            let ok_pct = if (total_ok + total_err) > 0 { (total_ok as f32 / (total_ok + total_err) as f32) * 100.0 } else { 0.0 };
+                <Transition fallback=|| view! { <div style="color: #64748b;">"Requesting data from OCI US-Ashburn..."</div> }>
+                    {move || health_data.get().map(|res| match res {
+                        Err(e) => view! { <div style="background: #fef2f2; color: #991b1b; padding: 15px; border-radius: 8px; border: 1px solid #fecaca;">{e}</div> }.into_view(),
+                        Ok(items) => {
+                            let filtered: Vec<_> = items.into_iter().filter(|item| {
+                                match filter.get() {
+                                    Filter::All => true,
+                                    Filter::Failed => item.err > 0,
+                                    Filter::Healthy => item.err == 0,
+                                }
+                            }).collect();
 
                             view! {
-                                <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 900;">
-                                        <span>"SYSTEM WIDE HEALTH"</span>
-                                        <span style=move || format!("color: {};", if ok_pct < 100.0 { "#ef4444" } else { "#10b981" })>{format!("{:.1}%", ok_pct)}</span>
-                                    </div>
-                                    <div style="width: 100%; height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden;">
-                                        <div style=move || format!("width: {}%; background: #10b981; height: 100%; transition: 1s;", ok_pct)></div>
-                                    </div>
-                                    <div style="margin-top: 10px; font-size: 0.8em; font-weight: 700; color: #64748b;">
-                                        {format!("{} OK / {} FAILED", total_ok, total_err)}
-                                    </div>
-                                </div>
-
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px;">
-                                    {data.into_iter().filter(|(_, cust)| {
-                                        match filter.get() {
-                                            Filter::All => true,
-                                            Filter::Failed => cust.groups.values().any(|g| g.err > 0),
-                                            Filter::Healthy => cust.groups.values().all(|g| g.err == 0),
-                                        }
-                                    }).map(|(_, cust)| {
-                                        let has_any_err = cust.groups.values().any(|g| g.err > 0);
-                                        let border_color = if has_any_err { "#ef4444" } else { "#10b981" };
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px;">
+                                    {filtered.into_iter().map(|item| {
+                                        let is_healthy = item.err == 0;
                                         view! {
-                                            <div style=format!("background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid {};", border_color)>
-                                                <h2 style="margin: 0 0 15px 0; font-weight: 900; color: #1e293b;">{cust.name}</h2>
-                                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                                                    {cust.groups.values().cloned().map(|g| {
-                                                        let has_err = g.err > 0;
-                                                        let bg = if has_err { "#fee2e2" } else { "#f0fdf4" };
-                                                        let txt = if has_err { "#991b1b" } else { "#166534" };
-                                                        view! {
-                                                            <div style=format!("background: {}; color: {}; padding: 6px 12px; border-radius: 6px; font-weight: 800; font-size: 0.75em;", bg, txt)>
-                                                                {format!("{}: {}/{}", g.name, g.ok, g.total)}
-                                                            </div>
-                                                        }
-                                                    }).collect_view()}
+                                            <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 5px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
+                                                <div style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">{item.customer}</div>
+                                                <div style="font-size: 1.25rem; font-weight: 900; color: #1e293b; margin-top: 2px; margin-bottom: 12px;">{item.env_name}</div>
+                                                
+                                                <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                                    <div>
+                                                        <div style=format!("font-size: 0.8rem; font-weight: 800; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>
+                                                            {if is_healthy { "HEALTHY" } else { "ERROR" }}
+                                                        </div>
+                                                        <div style="font-size: 0.75rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
+                                                    </div>
+                                                    <div style=format!("font-size: 1.25rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
+                                                        {format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}
+                                                    </div>
                                                 </div>
                                             </div>
                                         }
@@ -143,7 +127,7 @@ fn App() -> impl IntoView {
                                 </div>
                             }.into_view()
                         }
-                    }}
+                    })}
                 </Transition>
             </div>
         </div>

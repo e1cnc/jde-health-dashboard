@@ -35,6 +35,7 @@ const LIST_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p
 async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let mut results = Vec::new();
 
+    // Force JSON response from OCI
     let resp = Request::get(&format!("{}?format=json", LIST_API_URL))
         .header("Accept", "application/json")
         .send()
@@ -49,7 +50,7 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let list_data: OCIListResponse = serde_json::from_str(&body_text)
         .map_err(|e| format!("JSON Parse Error: {}. Check browser console.", e))?;
 
-    // FIXED: Case-insensitive check for "_latest.json"
+    // FIXED: Case-insensitive check to catch both _latest.json and _LATEST.JSON
     let target_files: Vec<String> = list_data.objects.into_iter()
         .map(|obj| obj.name)
         .filter(|name| name.to_lowercase().ends_with("_latest.json"))
@@ -60,10 +61,11 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     }
 
     for filename in target_files {
-        let file_url = format!("https://objectstorage.us-ashburn-1.oraclecloud.com/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/{}", filename);
+        let file_url = format!("{}/{}", LIST_API_URL, filename);
         
         if let Ok(file_resp) = Request::get(&file_url).send().await {
             if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
+                // Split filename (e.g., "LSJJNEWTR_dv_latest.json") to extract labels
                 let parts: Vec<&str> = filename.split('_').collect();
                 let customer = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
                 let group = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
@@ -72,6 +74,7 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
                 for inst in &instances {
                     let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
                     let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
+                    // Match logic: Status must be RUNNING and health must be passed
                     if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
                 }
 
@@ -86,6 +89,7 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         }
     }
 
+    // Sort alphabetically by customer name
     results.sort_by(|a, b| a.customer.cmp(&b.customer));
     Ok(results)
 }
@@ -99,7 +103,6 @@ fn App() -> impl IntoView {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
             <div style="max-width: 1200px; margin: auto;">
                 
-                // Header section
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
                     <div>
                         <h2 style="margin: 0; color: #0f172a; font-weight: 800; font-size: 1.8rem;">"JDE GLOBAL MONITOR"</h2>
@@ -116,7 +119,7 @@ fn App() -> impl IntoView {
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <p>"Scanning OCI Storage..."</p> }>
+                <Transition fallback=|| view! { <p style="color: #64748b; font-weight: 700;">"Scanning OCI Storage..."</p> }>
                     {move || health_data.get().map(|res| match res {
                         Err(e) => view! { 
                             <div style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 20px; border-radius: 12px; font-weight: 600;">{e}</div> 
@@ -135,7 +138,7 @@ fn App() -> impl IntoView {
                             }).collect();
 
                             view! {
-                                // System Wide Health Summary Bar
+                                // Restoration of the System Wide Health bar
                                 <div style="background: white; border-radius: 16px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                         <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">"SYSTEM WIDE HEALTH"</span>
@@ -149,7 +152,6 @@ fn App() -> impl IntoView {
                                     </div>
                                 </div>
 
-                                // Grid for Environment Cards
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                                     {filtered_items.into_iter().map(|item| {
                                         let is_healthy = item.err == 0;
@@ -157,17 +159,12 @@ fn App() -> impl IntoView {
                                             <div style=format!("background: white; border-radius: 15px; padding: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
                                                 <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">{item.customer}</div>
                                                 <div style="color: #1e293b; font-size: 1.5rem; font-weight: 900; margin-bottom: 15px;">{item.server_group}</div>
-                                                
                                                 <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 15px;">
                                                     <div>
-                                                        <div style=format!("font-weight: 800; font-size: 0.8rem; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>
-                                                            {if is_healthy { "HEALTHY" } else { "ERROR" }}
-                                                        </div>
+                                                        <div style=format!("font-weight: 800; font-size: 0.8rem; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>{if is_healthy { "HEALTHY" } else { "ERROR" }}</div>
                                                         <div style="font-size: 0.75rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
                                                     </div>
-                                                    <div style=format!("font-size: 1.8rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
-                                                        {format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}
-                                                    </div>
+                                                    <div style=format!("font-size: 1.8rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>{format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}</div>
                                                 </div>
                                             </div>
                                         }

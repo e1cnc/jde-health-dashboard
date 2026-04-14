@@ -11,7 +11,7 @@ pub struct HealthInstance {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct EnvStatus {
     pub customer: String,
-    pub server_group: String,
+    pub env_name: String,
     pub total: usize,
     pub ok: usize,
     pub err: usize,
@@ -35,7 +35,7 @@ const LIST_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p
 async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let mut results = Vec::new();
 
-    // Force JSON response from OCI
+    // Fetch the list of objects from the bucket
     let resp = Request::get(&format!("{}?format=json", LIST_API_URL))
         .header("Accept", "application/json")
         .send()
@@ -46,11 +46,10 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         return Err(format!("OCI Server Error: Status {}", resp.status()));
     }
 
-    let body_text = resp.text().await.map_err(|_| "Could not read response body")?;
-    let list_data: OCIListResponse = serde_json::from_str(&body_text)
-        .map_err(|e| format!("JSON Parse Error: {}. Check browser console.", e))?;
+    let list_data: OCIListResponse = resp.json().await
+        .map_err(|e| format!("JSON Parse Error: {}", e))?;
 
-    // FIXED: Case-insensitive check to catch both _latest.json and _LATEST.JSON
+    // FIXED: Filter for filenames ending in _latest.json (case-insensitive)
     let target_files: Vec<String> = list_data.objects.into_iter()
         .map(|obj| obj.name)
         .filter(|name| name.to_lowercase().ends_with("_latest.json"))
@@ -61,26 +60,26 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     }
 
     for filename in target_files {
+        // Use the Pre-Authenticated Request (PAR) URL prefix or the direct URL
         let file_url = format!("{}/{}", LIST_API_URL, filename);
         
         if let Ok(file_resp) = Request::get(&file_url).send().await {
             if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
-                // Split filename (e.g., "LSJJNEWTR_dv_latest.json") to extract labels
+                // Parse "CUSTOMER_ENV_latest.json" (e.g., "LSJJNEWTR_dv_latest.json")
                 let parts: Vec<&str> = filename.split('_').collect();
                 let customer = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
-                let group = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
+                let env = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
 
                 let (mut ok, mut err) = (0, 0);
                 for inst in &instances {
                     let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
                     let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
-                    // Match logic: Status must be RUNNING and health must be passed
                     if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
                 }
 
                 results.push(EnvStatus {
                     customer,
-                    server_group: group,
+                    env_name: env,
                     total: instances.len(),
                     ok,
                     err,
@@ -89,7 +88,6 @@ async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
         }
     }
 
-    // Sort alphabetically by customer name
     results.sort_by(|a, b| a.customer.cmp(&b.customer));
     Ok(results)
 }
@@ -119,11 +117,9 @@ fn App() -> impl IntoView {
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <p style="color: #64748b; font-weight: 700;">"Scanning OCI Storage..."</p> }>
+                <Transition fallback=|| view! { <p>"Syncing with OCI..."</p> }>
                     {move || health_data.get().map(|res| match res {
-                        Err(e) => view! { 
-                            <div style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 20px; border-radius: 12px; font-weight: 600;">{e}</div> 
-                        }.into_view(),
+                        Err(e) => view! { <div style="color: #ef4444; padding: 20px; border: 1px solid #ef4444; border-radius: 10px;">{e}</div> }.into_view(),
                         Ok(items) => {
                             let total_ok: usize = items.iter().map(|i| i.ok).sum();
                             let total_inst: usize = items.iter().map(|i| i.total).sum();
@@ -138,7 +134,6 @@ fn App() -> impl IntoView {
                             }).collect();
 
                             view! {
-                                // Restoration of the System Wide Health bar
                                 <div style="background: white; border-radius: 16px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                         <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">"SYSTEM WIDE HEALTH"</span>
@@ -152,19 +147,19 @@ fn App() -> impl IntoView {
                                     </div>
                                 </div>
 
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
                                     {filtered_items.into_iter().map(|item| {
                                         let is_healthy = item.err == 0;
                                         view! {
                                             <div style=format!("background: white; border-radius: 15px; padding: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-top: 5px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
-                                                <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">{item.customer}</div>
-                                                <div style="color: #1e293b; font-size: 1.5rem; font-weight: 900; margin-bottom: 15px;">{item.server_group}</div>
+                                                <div style="color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">{item.customer}</div>
+                                                <div style="color: #1e293b; font-size: 1.4rem; font-weight: 900; margin-bottom: 15px;">{item.env_name}</div>
                                                 <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 15px;">
                                                     <div>
                                                         <div style=format!("font-weight: 800; font-size: 0.8rem; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>{if is_healthy { "HEALTHY" } else { "ERROR" }}</div>
                                                         <div style="font-size: 0.75rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
                                                     </div>
-                                                    <div style=format!("font-size: 1.8rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>{format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}</div>
+                                                    <div style=format!("font-size: 1.5rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>{format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}</div>
                                                 </div>
                                             </div>
                                         }

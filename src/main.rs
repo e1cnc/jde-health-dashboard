@@ -122,7 +122,7 @@ fn App() -> impl IntoView {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: -apple-system, sans-serif;">
             <div style="max-width: 1200px; margin: auto;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
-                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -1px;">"JDE HEALTH MONITOR"</h2>
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -1px;">"JDE HEALTH CHECKS DASHBOARD"</h2>
                     
                     <div style="background: #e2e8f0; padding: 4px; border-radius: 12px; display: flex; gap: 4px;">
                         <button on:click=move |_| set_filter.set(Filter::All)

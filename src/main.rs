@@ -1,6 +1,7 @@
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
+use futures::stream::{FuturesUnordered, StreamExt};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HealthInstance {
@@ -29,52 +30,67 @@ enum Filter { All, Failed, Healthy }
 const BASE_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
 async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
-    let mut results = Vec::new();
-
-    // 1. Discover all files in the bucket
     let list_url = format!("{}?format=json", BASE_URL);
     let resp = Request::get(&list_url).send().await
         .map_err(|e| format!("List API Failed: {}", e))?;
     
     let list_data: OCIListResponse = resp.json().await
-        .map_err(|_| "Failed to parse OCI object list")?;
+        .map_err(|_| "Failed to parse OCI list.")?;
 
-    // 2. Filter for only the 'latest' files we saw in the debugger
     let target_files: Vec<String> = list_data.objects.into_iter()
         .map(|obj| obj.name)
         .filter(|name| name.to_lowercase().ends_with("_latest.json"))
         .collect();
 
-    // 3. Read each discovered file one by one
+    if target_files.is_empty() {
+        return Err("No '_latest.json' files found.".to_string());
+    }
+
+    let mut fetch_tasks = FuturesUnordered::new();
     for filename in target_files {
-        let file_url = format!("{}/{}", BASE_URL, filename);
-        
-        if let Ok(file_resp) = Request::get(&file_url).send().await {
-            if let Ok(instances) = file_resp.json::<Vec<HealthInstance>>().await {
-                // Split filename (e.g. "LSJJOLDTR_PY_latest.json") to get labels
-                let parts: Vec<&str> = filename.split('_').collect();
-                let cust = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
-                let env = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
-
-                let (mut ok, mut err) = (0, 0);
-                for inst in &instances {
-                    let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
-                    let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
-                    if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
-                }
-
-                results.push(EnvStatus {
-                    customer: cust,
-                    env_name: env,
-                    total: instances.len(),
-                    ok,
-                    err,
-                });
+        fetch_tasks.push(async move {
+            let file_url = format!("{}/{}", BASE_URL, filename);
+            match Request::get(&file_url).send().await {
+                Ok(res) => match res.json::<Vec<HealthInstance>>().await {
+                    Ok(instances) => Ok((filename, instances)),
+                    Err(_) => Err(format!("Parse error: {}", filename)),
+                },
+                Err(_) => Err(format!("Fetch error: {}", filename)),
             }
+        });
+    }
+
+    let mut results = Vec::new();
+    while let Some(task_result) = fetch_tasks.next().await {
+        if let Ok((filename, instances)) = task_result {
+            // Explicit type annotation for the split collect
+            let parts: Vec<&str> = filename.split('_').collect::<Vec<&str>>();
+            let cust = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
+            let env = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
+
+            let (mut ok, mut err) = (0, 0);
+            let total = instances.len(); // Store length locally to help inference
+
+            for inst in &instances {
+                let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
+                let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
+                if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
+            }
+
+            results.push(EnvStatus {
+                customer: cust,
+                env_name: env,
+                total,
+                ok,
+                err,
+            });
         }
     }
 
-    if results.is_empty() { return Err("No health data found in discovered files.".to_string()); }
+    if results.is_empty() {
+        return Err("Could not load any environment data.".to_string());
+    }
+
     results.sort_by(|a, b| a.customer.cmp(&b.customer));
     Ok(results)
 }
@@ -87,13 +103,8 @@ fn App() -> impl IntoView {
     view! {
         <div style="padding: 25px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
             <div style="max-width: 1200px; margin: auto;">
-                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-                    <div>
-                        <h2 style="margin: 0; color: #0f172a; font-weight: 800;">"JDE GLOBAL MONITOR"</h2>
-                        <p style="margin: 0; font-size: 0.75rem; color: #64748b; font-weight: 700;">"AUTO-DISCOVERY ACTIVE"</p>
-                    </div>
-                    
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800;">"JDE GLOBAL MONITOR"</h2>
                     <div style="display: flex; gap: 5px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
                         <button on:click=move |_| set_filter.set(Filter::All) style=move || format!("border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; background: {}; color: {};", if filter.get() == Filter::All { "#1e293b" } else { "transparent" }, if filter.get() == Filter::All { "white" } else { "#64748b" })>"ALL"</button>
                         <button on:click=move |_| set_filter.set(Filter::Failed) style=move || format!("border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; background: {}; color: {};", if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" }, if filter.get() == Filter::Failed { "white" } else { "#64748b" })>"FAILED"</button>
@@ -101,15 +112,15 @@ fn App() -> impl IntoView {
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <p>"Processing Discovered Files..."</p> }>
+                <Transition fallback=|| view! { <p>"Processing..."</p> }>
                     {move || health_resource.get().map(|res| match res {
-                        Err(e) => view! { <div style="color: #ef4444;">{e}</div> }.into_view(),
+                        Err(e) => view! { <div style="color: #ef4444; padding: 20px; background: white; border-radius: 8px;">{e}</div> }.into_view(),
                         Ok(items) => {
                             let total_ok: usize = items.iter().map(|i| i.ok).sum();
                             let total_inst: usize = items.iter().map(|i| i.total).sum();
                             let health_pct = if total_inst > 0 { (total_ok as f32 / total_inst as f32) * 100.0 } else { 0.0 };
 
-                            let filtered: Vec<_> = items.into_iter().filter(|item| {
+                            let filtered_items: Vec<_> = items.into_iter().filter(|item| {
                                 match filter.get() {
                                     Filter::All => true,
                                     Filter::Failed => item.err > 0,
@@ -126,11 +137,10 @@ fn App() -> impl IntoView {
                                     <div style="background: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
                                         <div style=format!("background: #10b981; height: 100%; width: {}%; transition: width 0.4s;", health_pct)></div>
                                     </div>
-                                    <div style="margin-top: 10px; font-size: 0.7rem; font-weight: 700; color: #94a3b8;">{format!("{} OK / {} TOTAL", total_ok, total_inst)}</div>
                                 </div>
 
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
-                                    {filtered.into_iter().map(|item| {
+                                    {filtered_items.into_iter().map(|item| {
                                         let is_healthy = item.err == 0;
                                         view! {
                                             <div style=format!("background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 4px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>

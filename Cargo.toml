@@ -11,3 +11,4 @@ gloo-net = "0.4"
 wasm-bindgen = "0.2"
 js-sys = "0.3"  # Added this for the random number generator
 gloo-timers = "0.4.0"
+futures = "0.3.32"

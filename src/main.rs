@@ -11,42 +11,61 @@ pub struct HealthInstance {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct EnvStatus {
     pub customer: String,
-    pub env_name: String,
+    pub server_group: String,
     pub total: usize,
     pub ok: usize,
     pub err: usize,
 }
 
+// OCI API Response Structures
+#[derive(Deserialize)]
+struct OCIObject { name: String }
+#[derive(Deserialize)]
+struct OCIListResponse { objects: Vec<OCIObject> }
+
 #[derive(Clone, Copy, PartialEq)]
 enum Filter { All, Failed, Healthy }
 
-async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
+const BASE_API_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
+
+async fn fetch_dynamic_jde_health() -> Result<Vec<EnvStatus>, String> {
     let mut results = Vec::new();
-    
-    // Updated targets with correct uppercase 'PY' for OCI Object Storage case-sensitivity
-    let targets = vec![
-         ("LSJJNEWTR", "DV", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJNEWTR_dv_latest.json"),
-        ("LSJJNEWTR", "PY", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJNEWTR_py_latest.json"),
-        ("LSJJOLDTR", "PS", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJOLDTR_ps_latest.json"),
-        ("LSJJOLDTR", "PY", "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/LSJJOLDTR_PY_latest.json"),
-    ];
 
-    for (cust, env, url) in targets {
-        if let Ok(resp) = Request::get(url).send().await {
+    // 1. List objects to discover files
+    let list_url = format!("{}/o", BASE_API_URL);
+    let list_resp = Request::get(&list_url)
+        .send()
+        .await
+        .map_err(|_| "Failed to list bucket objects")?
+        .json::<OCIListResponse>()
+        .await
+        .map_err(|_| "Invalid response from OCI List API")?;
+
+    // 2. Filter for files following the {Customer}_{Group}_latest.json pattern
+    let target_files: Vec<String> = list_resp.objects.into_iter()
+        .map(|obj| obj.name)
+        .filter(|name| name.ends_with("_latest.json"))
+        .collect();
+
+    for filename in target_files {
+        let file_url = format!("{}/o/{}", BASE_API_URL, filename);
+        
+        if let Ok(resp) = Request::get(&file_url).send().await {
             if let Ok(instances) = resp.json::<Vec<HealthInstance>>().await {
-                let mut ok = 0;
-                let mut err = 0;
+                let parts: Vec<&str> = filename.split('_').collect();
+                let customer = parts.get(0).unwrap_or(&"UNKNOWN").to_string();
+                let group = parts.get(1).unwrap_or(&"UNKNOWN").to_string();
 
+                let (mut ok, mut err) = (0, 0);
                 for inst in &instances {
                     let s = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
                     let h = inst.health_status.as_deref().unwrap_or("").to_lowercase();
-                    // Status logic: RUNNING and passed
                     if s == "RUNNING" && h == "passed" { ok += 1; } else { err += 1; }
                 }
 
                 results.push(EnvStatus {
-                    customer: cust.to_string(),
-                    env_name: env.to_string(),
+                    customer,
+                    server_group: group,
                     total: instances.len(),
                     ok,
                     err,
@@ -54,44 +73,39 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
             }
         }
     }
-    
-    if results.is_empty() { return Err("No data retrieved. Verify CORS and OCI paths.".to_string()); }
+
+    if results.is_empty() { return Err("No health data files found in bucket.".to_string()); }
     Ok(results)
 }
 
 #[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
-    let health_data = create_resource(|| (), |_| async move { fetch_jde_health_data().await });
+    let health_data = create_resource(|| (), |_| async move { fetch_dynamic_jde_health().await });
 
     view! {
-        <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif;">
-            <div style="max-width: 1100px; margin: auto;">
+        <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
+            <div style="max-width: 1200px; margin: auto;">
                 
-                // Header & Controls
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
-                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.025em;">"JDE HEALTH DASHBOARD"</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                    <div>
+                        <h2 style="margin: 0; color: #0f172a; font-weight: 800;">"JDE GLOBAL MONITOR"</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 0.7rem; color: #64748b; font-weight: 700;">"AUTO-DISCOVERY ACTIVE"</p>
+                    </div>
                     
                     <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        {move || vec![Filter::All, Filter::Failed, Filter::Healthy].into_iter().map(|f| {
-                            let label = match f { Filter::All => "ALL", Filter::Failed => "FAILED", Filter::Healthy => "HEALTHY" };
-                            let is_active = filter.get() == f;
-                            view! {
-                                <button on:click=move |_| set_filter.set(f)
-                                    style=format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; transition: all 0.2s; background: {}; color: {}; shadow: {};", 
-                                        if is_active { "#1e293b" } else { "transparent" },
-                                        if is_active { "white" } else { "#64748b" },
-                                        if is_active { "0 1px 3px rgba(0,0,0,0.1)" } else { "none" })>
-                                    {label}
-                                </button>
-                            }
-                        }).collect_view()}
+                        <button on:click=move |_| set_filter.set(Filter::All)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::All { "#1e293b" } else { "transparent" }, if filter.get() == Filter::All { "white" } else { "#64748b" })>"ALL"</button>
+                        <button on:click=move |_| set_filter.set(Filter::Failed)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" }, if filter.get() == Filter::Failed { "white" } else { "#64748b" })>"FAILED"</button>
+                        <button on:click=move |_| set_filter.set(Filter::Healthy)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 0.75rem; background: {}; color: {};", if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" }, if filter.get() == Filter::Healthy { "white" } else { "#64748b" })>"HEALTHY"</button>
                     </div>
                 </div>
 
-                <Transition fallback=|| view! { <div style="color: #64748b;">"Requesting data from OCI US-Ashburn..."</div> }>
+                <Transition fallback=|| view! { <p style="color: #64748b; font-weight: 700;">"Scanning OCI Bucket..."</p> }>
                     {move || health_data.get().map(|res| match res {
-                        Err(e) => view! { <div style="background: #fef2f2; color: #991b1b; padding: 15px; border-radius: 8px; border: 1px solid #fecaca;">{e}</div> }.into_view(),
+                        Err(e) => view! { <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 8px;">{e}</div> }.into_view(),
                         Ok(items) => {
                             let filtered: Vec<_> = items.into_iter().filter(|item| {
                                 match filter.get() {
@@ -102,22 +116,22 @@ fn App() -> impl IntoView {
                             }).collect();
 
                             view! {
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;">
                                     {filtered.into_iter().map(|item| {
                                         let is_healthy = item.err == 0;
                                         view! {
                                             <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 5px solid {};", if is_healthy { "#10b981" } else { "#ef4444" })>
-                                                <div style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">{item.customer}</div>
-                                                <div style="font-size: 1.25rem; font-weight: 900; color: #1e293b; margin-top: 2px; margin-bottom: 12px;">{item.env_name}</div>
+                                                <div style="font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase;">{item.customer}</div>
+                                                <div style="font-size: 1.2rem; font-weight: 900; color: #1e293b; margin-bottom: 12px;">{item.server_group}</div>
                                                 
-                                                <div style="display: flex; justify-content: space-between; align-items: flex-end; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                                                <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f1f5f9; padding-top: 10px;">
                                                     <div>
                                                         <div style=format!("font-size: 0.8rem; font-weight: 800; color: {};", if is_healthy { "#059669" } else { "#dc2626" })>
                                                             {if is_healthy { "HEALTHY" } else { "ERROR" }}
                                                         </div>
                                                         <div style="font-size: 0.75rem; color: #64748b;">{format!("{}/{} OK", item.ok, item.total)}</div>
                                                     </div>
-                                                    <div style=format!("font-size: 1.25rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
+                                                    <div style=format!("font-size: 1.35rem; font-weight: 900; color: {};", if is_healthy { "#10b981" } else { "#ef4444" })>
                                                         {format!("{:.0}%", (item.ok as f32 / item.total as f32) * 100.0)}
                                                     </div>
                                                 </div>
@@ -134,4 +148,7 @@ fn App() -> impl IntoView {
     }
 }
 
-fn main() { mount_to_body(|| view! { <App /> }) }
+// THE MISSING MAIN FUNCTION
+fn main() {
+    mount_to_body(|| view! { <App /> })
+}

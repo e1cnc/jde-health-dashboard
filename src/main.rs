@@ -38,15 +38,15 @@ async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
             if let Some(objects) = json.get("objects").and_then(|o| o.as_array()) {
                 for obj in objects {
                     if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                        if name.ends_with(".json") {
+                        // Skip the generic dashboard file and only process health jsons
+                        if name.ends_with(".json") && name != "data.json" {
                             let parts: Vec<&str> = name.split('_').collect();
                             if parts.len() >= 2 {
-                                // Key is "CUSTOMER_GROUP" e.g., "LSJJOLDTR_PY"
                                 let key = format!("{}_{}", parts[0], parts[1].to_uppercase());
                                 
-                                // Logic: If we haven't seen this group yet, or if this new file is the "latest" marker
+                                // STRIC_PRIORITY: Always prefer files ending in _latest.json
                                 let current_winner = winning_files.get(&key);
-                                if current_winner.is_none() || name.contains("latest") {
+                                if current_winner.is_none() || name.ends_with("_latest.json") {
                                     winning_files.insert(key, name.to_string());
                                 }
                             }
@@ -99,19 +99,25 @@ fn App() -> impl IntoView {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: sans-serif;">
             <div style="max-width: 1200px; margin: auto;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                    <h2 style="margin: 0; color: #0f172a; font-weight: 800;">"JDE HEALTH DASHBOARD"</h2>
-                    <div style="background: #e2e8f0; padding: 4px; border-radius: 10px; display: flex; gap: 4px;">
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">"JDE HEALTH DASHBOARD"</h2>
+                    <div style="background: #e2e8f0; padding: 4px; border-radius: 12px; display: flex; gap: 4px;">
                         <button on:click=move |_| set_filter.set(Filter::All) 
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; background: {};", if filter.get() == Filter::All { "white" } else { "transparent" })> "ALL" </button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {};", 
+                                if filter.get() == Filter::All { "white" } else { "transparent" },
+                                if filter.get() == Filter::All { "#1e293b" } else { "#64748b" })> "ALL" </button>
                         <button on:click=move |_| set_filter.set(Filter::Failed) 
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; background: {};", if filter.get() == Filter::Failed { "white" } else { "transparent" })> "FAILED" </button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {};", 
+                                if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
+                                if filter.get() == Filter::Failed { "white" } else { "#64748b" })> "FAILED" </button>
                         <button on:click=move |_| set_filter.set(Filter::Healthy) 
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; background: {};", if filter.get() == Filter::Healthy { "white" } else { "transparent" })> "HEALTHY" </button>
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {};", 
+                                if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
+                                if filter.get() == Filter::Healthy { "white" } else { "#64748b" })> "HEALTHY" </button>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
-                    <Transition fallback=|| view! { <p>"Syncing Live Data..."</p> }>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;">
+                    <Transition fallback=|| view! { <p>"Syncing Environments..."</p> }>
                         {move || health_data.get().unwrap_or_default().into_iter()
                             .filter(|(_, cust)| {
                                 let has_fail = cust.groups.values().any(|g| !g.is_healthy);
@@ -126,17 +132,16 @@ fn App() -> impl IntoView {
                                 let status_color = if is_critical { "#ef4444" } else { "#10b981" };
 
                                 view! {
-                                    <div style=format!("background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 6px solid {};", status_color)>
-                                        <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.2em; font-weight: 800;">{cust.name}</h3>
-                                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                    <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border-top: 6px solid {};", status_color)>
+                                        <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.1em; font-weight: 800;">{cust.name}</h3>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                                             {cust.groups.values().cloned().map(|g| {
                                                 let bg = if g.is_healthy { "#f0fdf4" } else { "#fee2e2" };
                                                 let fg = if g.is_healthy { "#166534" } else { "#991b1b" };
                                                 let dot = if g.is_healthy { "#22c55e" } else { "#ef4444" };
                                                 
-                                                // Fixed: Added bg and fg to the format arguments
                                                 view! {
-                                                    <div style=format!("background: {}; color: {}; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 0.8em; border: 1px solid rgba(0,0,0,0.05); display: flex; align-items: center; gap: 8px;", bg, fg)>
+                                                    <div style=format!("background: {}; color: {}; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 0.72em; border: 1px solid rgba(0,0,0,0.05); display: flex; align-items: center; gap: 8px;", bg, fg)>
                                                         <div style=format!("width: 8px; height: 8px; border-radius: 50%; background: {};", dot)></div>
                                                         {format!("{}: {}", g.name, g.total)}
                                                     </div>

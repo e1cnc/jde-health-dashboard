@@ -289,12 +289,9 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let values_js = to_value(&values).unwrap_or(JsValue::NULL);
         let colors_js = to_value(&colors).unwrap_or(JsValue::NULL);
 
-        let chart_ctor = js_sys::Reflect::get(
-            &web_sys::window().unwrap(),
-            &JsValue::from_str("Chart"),
-        )
-        .ok()
-        .filter(|v| !v.is_undefined() && !v.is_null());
+        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
+            .ok()
+            .filter(|v| !v.is_undefined() && !v.is_null());
 
         let Some(chart_ctor) = chart_ctor else {
             log("Chart.js is not loaded on window.Chart");

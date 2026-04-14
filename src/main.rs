@@ -707,7 +707,7 @@ fn App() -> impl IntoView {
                                                 </div>
                                             </div>
 
-                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; align-items: start;">
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; align-items: stretch;">
                                                 {
                                                     customer_groups
                                                         .into_iter()
@@ -716,7 +716,7 @@ fn App() -> impl IntoView {
                                                             let customer_healthy = group.err == 0;
 
                                                             view! {
-                                                                <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 100%;">
+                                                                <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 100%; display: flex; flex-direction: column;">
                                                                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
                                                                         <div style="min-width: 150px;">
                                                                             <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
@@ -730,7 +730,7 @@ fn App() -> impl IntoView {
                                                                         <div style="flex: 1; min-width: 190px;">
                                                                             <div style="display: flex; justify-content: space-between; font-size: 0.70rem; margin-bottom: 4px;">
                                                                                 <span style="color: #475569; font-weight: 700;">
-                                                                                    {if customer_healthy { "Group Healthy" } else { "Group Errors" }}
+                                                                                    "Group Health"
                                                                                 </span>
                                                                                 <span style=format!(
                                                                                     "font-weight: 900; color: {};",
@@ -757,7 +757,7 @@ fn App() -> impl IntoView {
                                                                         </div>
                                                                     </div>
 
-                                                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;">
+                                                                    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;">
                                                                         {
                                                                             group.envs
                                                                                 .into_iter()
@@ -770,40 +770,40 @@ fn App() -> impl IntoView {
                                                                                         <div
                                                                                             on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
                                                                                             style=format!(
-                                                                                                "background: #fff; border-radius: 9px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer;",
+                                                                                                "background: #fff; border-radius: 9px; padding: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer; min-height: 145px; display: flex; flex-direction: column;",
                                                                                                 if is_healthy { "#10b981" } else { "#ef4444" }
                                                                                             )
                                                                                         >
-                                                                                            <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
+                                                                                            <div style="color: #94a3b8; font-size: 0.50rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                                 {item.customer.clone()}
                                                                                             </div>
 
-                                                                                            <div style="color: #1e293b; font-size: 0.90rem; font-weight: 900; margin-bottom: 7px; line-height: 1.05;">
+                                                                                            <div style="color: #1e293b; font-size: 0.82rem; font-weight: 900; margin-bottom: 6px; line-height: 1.05;">
                                                                                                 {item.env_name.clone()}
                                                                                             </div>
 
-                                                                                            <div style="display: grid; gap: 2px; margin-bottom: 7px; font-size: 0.68rem; color: #475569;">
+                                                                                            <div style="display: grid; gap: 2px; font-size: 0.64rem; color: #475569;">
                                                                                                 <div>{format!("T: {}", item.total)}</div>
                                                                                                 <div>{format!("OK: {}", item.ok)}</div>
                                                                                                 <div>{format!("ER: {}", item.err)}</div>
                                                                                             </div>
 
-                                                                                            <div style="display: flex; justify-content: space-between; align-items: end; border-top: 1px solid #f1f5f9; padding-top: 7px;">
+                                                                                            <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: end; border-top: 1px solid #f1f5f9; padding-top: 7px;">
                                                                                                 <div>
                                                                                                     <div style=format!(
-                                                                                                        "font-weight: 800; font-size: 0.60rem; color: {}; line-height: 1.0;",
+                                                                                                        "font-weight: 800; font-size: 0.58rem; color: {}; line-height: 1.0;",
                                                                                                         if is_healthy { "#059669" } else { "#dc2626" }
                                                                                                     )>
                                                                                                         {if is_healthy { "HEALTHY" } else { "ERROR" }}
                                                                                                     </div>
 
-                                                                                                    <div style="font-size: 0.58rem; color: #64748b; line-height: 1.0;">
+                                                                                                    <div style="font-size: 0.56rem; color: #64748b; line-height: 1.0;">
                                                                                                         {format!("{}/{} OK", item.ok, item.total)}
                                                                                                     </div>
                                                                                                 </div>
 
                                                                                                 <div style=format!(
-                                                                                                    "font-size: 1rem; font-weight: 900; color: {}; line-height: 1;",
+                                                                                                    "font-size: 0.92rem; font-weight: 900; color: {}; line-height: 1;",
                                                                                                     if is_healthy { "#10b981" } else { "#ef4444" }
                                                                                                 )>
                                                                                                     {format!("{:.0}%", pct)}
@@ -814,6 +814,28 @@ fn App() -> impl IntoView {
                                                                                 })
                                                                                 .collect_view()
                                                                         }
+                                                                    </div>
+
+                                                                    <div style="margin-top: auto; padding-top: 10px;">
+                                                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; margin-bottom: 4px;">
+                                                                            <span style="color: #475569; font-weight: 700;">
+                                                                                {if customer_healthy { "Group Healthy" } else { "Group Errors" }}
+                                                                            </span>
+                                                                            <span style=format!(
+                                                                                "font-weight: 900; color: {};",
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                            )>
+                                                                                {format!("Err: {}", group.err)}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div style="background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
+                                                                            <div style=format!(
+                                                                                "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" },
+                                                                                customer_pct
+                                                                            )></div>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             }

@@ -1,7 +1,7 @@
 use leptos::*;
 use serde::{Deserialize, Serialize};
 use gloo_net::http::Request;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use gloo_timers::callback::Interval;
 
 // --- Data Models ---
@@ -34,7 +34,7 @@ pub struct CustomerSummary {
 enum Filter {
     All,
     Failed,
-    Running,
+    Healthy,
 }
 
 // --- Helper Functions ---
@@ -50,6 +50,7 @@ fn parse_meta(filename: &str) -> Option<(String, String)> {
 
 async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
     let mut customers: BTreeMap<String, CustomerSummary> = BTreeMap::new();
+    let mut processed_files = HashSet::new();
     let base_url = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o/";
 
     if let Ok(resp) = Request::get(base_url).send().await {
@@ -57,7 +58,8 @@ async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
             if let Some(objects) = json.get("objects").and_then(|o| o.as_array()) {
                 for obj in objects {
                     if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                        if name.contains("_health.json") || name.ends_with("_latest.json") {
+                        // Avoid duplicates and only take the actual health/latest files
+                        if (name.contains("_health.json") || name.contains("_latest.json")) && processed_files.insert(name.to_string()) {
                             if let Some((cust_name, grp_name)) = parse_meta(name) {
                                 let file_url = format!("{}{}", base_url, name);
                                 if let Ok(file_resp) = Request::get(&file_url).send().await {
@@ -70,9 +72,10 @@ async fn fetch_all_health_data() -> BTreeMap<String, CustomerSummary> {
                                         let mut ok = 0;
                                         let mut err = 0;
                                         for inst in &instances {
-                                            let status = inst.instance_status.as_deref().unwrap_or("");
-                                            let health = inst.health_status.as_deref().unwrap_or("");
-                                            if status == "RUNNING" && health == "Passed" {
+                                            let status = inst.instance_status.as_deref().unwrap_or("").to_uppercase();
+                                            let health = inst.health_status.as_deref().unwrap_or("").to_lowercase();
+                                            
+                                            if status == "RUNNING" && health == "passed" {
                                                 ok += 1;
                                             } else {
                                                 err += 1;
@@ -118,28 +121,27 @@ fn App() -> impl IntoView {
     view! {
         <div style="padding: 20px; background: #f8fafc; min-height: 100vh; font-family: -apple-system, sans-serif;">
             <div style="max-width: 1200px; margin: auto;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.5px;">"JDE HEALTH MONITOR"</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px;">
+                    <h2 style="margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -1px;">"JDE HEALTH MONITOR"</h2>
                     
-                    <div style="background: #e2e8f0; padding: 3px; border-radius: 10px; display: flex; gap: 2px;">
-                        // Added 'move' keyword to the click handlers below
+                    <div style="background: #e2e8f0; padding: 4px; border-radius: 12px; display: flex; gap: 4px;">
                         <button on:click=move |_| set_filter.set(Filter::All)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {}; transition: 0.2s;", 
                                 if filter.get() == Filter::All { "white" } else { "transparent" },
                                 if filter.get() == Filter::All { "#1e293b" } else { "#64748b" })> "ALL" </button>
                         <button on:click=move |_| set_filter.set(Filter::Failed)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {}; transition: 0.2s;", 
                                 if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
                                 if filter.get() == Filter::Failed { "white" } else { "#64748b" })> "FAILED" </button>
-                        <button on:click=move |_| set_filter.set(Filter::Running)
-                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.7em; background: {}; color: {}; transition: 0.2s;", 
-                                if filter.get() == Filter::Running { "#22c55e" } else { "transparent" },
-                                if filter.get() == Filter::Running { "white" } else { "#64748b" })> "HEALTHY" </button>
+                        <button on:click=move |_| set_filter.set(Filter::Healthy)
+                            style=move || format!("border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.75em; background: {}; color: {}; transition: 0.2s;", 
+                                if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
+                                if filter.get() == Filter::Healthy { "white" } else { "#64748b" })> "HEALTHY" </button>
                     </div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-                    <Transition fallback=|| view! { <p style="color: #64748b;">"Syncing Live Status..."</p> }>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                    <Transition fallback=|| view! { <p>"Connecting to OCI..."</p> }>
                         {move || {
                             health_data.get().unwrap_or_default().into_iter()
                                 .filter(|(_, cust)| {
@@ -147,7 +149,7 @@ fn App() -> impl IntoView {
                                     match filter.get() {
                                         Filter::All => true,
                                         Filter::Failed => has_err,
-                                        Filter::Running => !has_err,
+                                        Filter::Healthy => !has_err,
                                     }
                                 })
                                 .map(|(_, cust)| {
@@ -157,32 +159,35 @@ fn App() -> impl IntoView {
                                     let is_critical = total_err > 0;
 
                                     view! {
-                                        <div style=format!("background: white; border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; border-top: 5px solid {};", if is_critical { "#ef4444" } else { "#10b981" })>
-                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                        <div style=format!("background: white; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border-top: 5px solid {};", if is_critical { "#ef4444" } else { "#10b981" })>
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                                                 <h3 style="margin: 0; font-size: 1.1em; color: #1e293b; font-weight: 800;">{cust.name}</h3>
                                                 <div style=format!("font-size: 0.85em; font-weight: 900; color: {};", if is_critical { "#ef4444" } else { "#10b981" })>
                                                     {format!("{}%", if total_inst > 0 { (total_ok as f32 / total_inst as f32 * 100.0) as i32 } else { 0 })}
                                                 </div>
                                             </div>
 
-                                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px;">
                                                 {cust.groups.values().cloned().map(|g| {
-                                                    let group_err = g.err > 0;
-                                                    let bg = if group_err { "#fee2e2" } else { "#f1f5f9" };
-                                                    let fg = if group_err { "#b91c1c" } else { "#475569" };
+                                                    let is_err = g.err > 0;
+                                                    let bg = if is_err { "#fee2e2" } else { "#f0fdf4" };
+                                                    let dot = if is_err { "#ef4444" } else { "#22c55e" };
+                                                    let text = if is_err { "#991b1b" } else { "#166534" };
 
                                                     view! {
-                                                        <div style=format!("background: {}; color: {}; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 0.72em; display: flex; align-items: center; gap: 6px; border: 1px solid rgba(0,0,0,0.05);", bg, fg)>
-                                                            <div style=format!("width: 6px; height: 6px; border-radius: 50%; background: {};", if group_err { "#ef4444" } else { "#22c55e" })></div>
+                                                        <div style=format!("background: {}; color: {}; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 0.75em; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(0,0,0,0.05);", bg, text)>
+                                                            <div style=format!("width: 8px; height: 8px; border-radius: 50%; background: {};", dot)></div>
                                                             <span>{format!("{}: {}", g.name, g.total)}</span>
                                                         </div>
                                                     }
                                                 }).collect_view()}
                                             </div>
 
-                                            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: 700; color: #94a3b8; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: 700; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 10px;">
                                                 <span>{format!("{} OK", total_ok)}</span>
-                                                <span>{format!("{} ERROR", total_err)}</span>
+                                                <span style=format!("color: {};", if total_err > 0 { "#ef4444" } else { "#94a3b8" })>
+                                                    {format!("{} ERROR", total_err)}
+                                                </span>
                                             </div>
                                         </div>
                                     }

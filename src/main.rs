@@ -782,7 +782,7 @@ fn App() -> impl IntoView {
                                                                         <div style="background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #e2e8f0;">
                                                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
                                                                                 <span style="font-size: 0.70rem; font-weight: 800; color: #334155;">
-                                                                                    {format!("Group Errors / {} envs", env_count)}
+                                                                                    {format!("Server Group Errors / {} envs", env_count)}
                                                                                 </span>
 
                                                                                 <span style=format!(

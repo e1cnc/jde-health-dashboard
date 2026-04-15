@@ -42,15 +42,6 @@ pub struct CustomerChartDatum {
     pub total: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HistoricalPoint {
-    pub label: String,
-    pub passed: usize,
-    pub failed: usize,
-    pub total: usize,
-    pub filename: String,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct OCIObject {
     pub name: String,
@@ -71,13 +62,6 @@ enum Filter {
     Healthy,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum PageView {
-    Dashboard,
-    Detail,
-    History,
-}
-
 const BASE_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o";
 
 fn log(msg: &str) {
@@ -92,37 +76,6 @@ fn parse_customer_env(filename: &str) -> (String, String) {
     let env = parts.get(1).unwrap_or(&"UNKNOWN").to_uppercase();
 
     (customer, env)
-}
-
-fn parse_history_filename(filename: &str) -> Option<(String, String, String, String, String)> {
-    let base = filename.strip_suffix(".json").unwrap_or(filename);
-    let parts: Vec<&str> = base.split('_').collect();
-
-    if parts.len() < 6 {
-        return None;
-    }
-
-    let customer = parts[0].to_string();
-    let servergroup = parts[1].to_string();
-    let month = parts[2].to_string();
-    let year = parts[3].to_string();
-    let hhmm = parts[4].to_string();
-
-    if parts[5].to_lowercase() != "health" {
-        return None;
-    }
-
-    Some((customer, servergroup, month, year, hhmm))
-}
-
-fn format_history_label(month: &str, year: &str, hhmm: &str) -> String {
-    format!("{} {} {}", month, year, hhmm)
-}
-
-fn matches_history_file(filename: &str, customer: &str, servergroup: &str) -> bool {
-    let lower = filename.to_lowercase();
-    let prefix = format!("{}_{}_", customer.to_lowercase(), servergroup.to_lowercase());
-    lower.starts_with(&prefix) && lower.ends_with("_health.json")
 }
 
 fn calc_pct(ok: usize, total: usize) -> f32 {
@@ -202,7 +155,7 @@ async fn fetch_json_file(filename: &str) -> Result<Vec<HealthInstance>, String> 
         .map_err(|e| format!("JSON parse error for {}: {}", filename, e))
 }
 
-async fn fetch_object_names() -> Result<Vec<String>, String> {
+async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
     let list_url = format!("{}/?format=json", BASE_URL);
     log(&format!("Listing URL: {}", list_url));
 
@@ -226,13 +179,9 @@ async fn fetch_object_names() -> Result<Vec<String>, String> {
         list_data.data
     };
 
-    Ok(all_objects.into_iter().map(|obj| obj.name).collect())
-}
-
-async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
-    let target_files: Vec<String> = fetch_object_names()
-        .await?
+    let target_files: Vec<String> = all_objects
         .into_iter()
+        .map(|obj| obj.name)
         .filter(|name| name.to_lowercase().ends_with("_latest.json"))
         .collect();
 
@@ -315,84 +264,6 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
     });
 
     Ok(results)
-}
-
-async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<HistoricalPoint>, String> {
-    let mut matching_files: Vec<String> = fetch_object_names()
-        .await?
-        .into_iter()
-        .filter(|name| matches_history_file(name, customer, servergroup))
-        .collect();
-
-    matching_files.sort();
-    matching_files.reverse();
-    matching_files.truncate(15);
-    matching_files.reverse();
-
-    if matching_files.is_empty() {
-        return Err(format!(
-            "No historical files found for customer '{}' and servergroup '{}'",
-            customer, servergroup
-        ));
-    }
-
-    let mut fetch_tasks = FuturesUnordered::new();
-
-    for filename in matching_files {
-        fetch_tasks.push(async move {
-            let instances = fetch_json_file(&filename).await?;
-            Ok::<(String, Vec<HealthInstance>), String>((filename, instances))
-        });
-    }
-
-    let mut points = Vec::new();
-
-    while let Some(result) = fetch_tasks.next().await {
-        match result {
-            Ok((filename, instances)) => {
-                let Some((_, _, month, year, hhmm)) = parse_history_filename(&filename) else {
-                    continue;
-                };
-
-                let mut passed = 0usize;
-                let mut failed = 0usize;
-
-                for inst in &instances {
-                    let instance_status = inst
-                        .instance_status
-                        .as_deref()
-                        .unwrap_or("")
-                        .trim()
-                        .to_uppercase();
-
-                    let health_status = inst
-                        .health_status
-                        .as_deref()
-                        .unwrap_or("")
-                        .trim()
-                        .to_lowercase();
-
-                    if instance_status == "RUNNING" && health_status == "passed" {
-                        passed += 1;
-                    } else {
-                        failed += 1;
-                    }
-                }
-
-                points.push(HistoricalPoint {
-                    label: format_history_label(&month, &year, &hhmm),
-                    passed,
-                    failed,
-                    total: passed + failed,
-                    filename,
-                });
-            }
-            Err(e) => log(&e),
-        }
-    }
-
-    points.sort_by(|a, b| a.filename.cmp(&b.filename));
-    Ok(points)
 }
 
 #[component]
@@ -508,123 +379,10 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 }
 
 #[component]
-fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
-    let canvas_ref = create_node_ref::<html::Canvas>();
-
-    create_effect(move |_| {
-        let Some(canvas) = canvas_ref.get() else {
-            return;
-        };
-
-        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
-        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
-        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
-
-        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
-        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
-        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
-
-        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
-            .ok()
-            .filter(|v| !v.is_undefined() && !v.is_null());
-
-        let Some(chart_ctor) = chart_ctor else {
-            log("Chart.js is not loaded on window.Chart");
-            return;
-        };
-
-        let window = web_sys::window().unwrap();
-        let chart_key = JsValue::from_str("__jde_history_chart");
-
-        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
-            if !existing.is_undefined() && !existing.is_null() {
-                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
-                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
-                        let _ = destroy.call0(&existing);
-                    }
-                }
-            }
-        }
-
-        let dataset_passed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let dataset_failed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let datasets = js_sys::Array::new();
-        datasets.push(&dataset_passed);
-        datasets.push(&dataset_failed);
-
-        let data_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
-
-        let x_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let y_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let x_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
-
-        let y_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
-
-        let scales = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
-
-        let legend = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
-
-        let plugins = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
-
-        let options = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
-
-        let config = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
-
-        let args = js_sys::Array::new();
-        args.push(canvas.as_ref());
-        args.push(&config);
-
-        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
-            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
-                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
-            }
-        }
-    });
-
-    view! {
-        <div style="height: 420px; width: 100%; position: relative;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
-        </div>
-    }
-}
-
-#[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
     let (seconds_left, set_seconds_left) = create_signal(REFRESH_SECONDS);
     let (selected_env, set_selected_env) = create_signal::<Option<EnvStatus>>(None);
-    let (selected_history_env, set_selected_history_env) = create_signal::<Option<EnvStatus>>(None);
-    let (page_view, set_page_view) = create_signal(PageView::Dashboard);
 
     let health_resource = create_resource(
         || (),
@@ -646,23 +404,9 @@ fn App() -> impl IntoView {
         },
     );
 
-    let history_resource = create_resource(
-        move || selected_history_env.get(),
-        |selected| async move {
-            match selected {
-                Some(env) => {
-                let points = fetch_history_data(&env.customer, &env.env_name).await?;
-                    Ok::<(EnvStatus, Vec<HistoricalPoint>), String>((env, points))
-                }
-                None => Err("No historical environment selected.".to_string()),
-            }
-        },
-    );
-
     {
         let health_resource = health_resource;
         let detail_resource = detail_resource;
-        let history_resource = history_resource;
 
         create_effect(move |_| {
             let interval = Interval::new(TICK_MS, move || {
@@ -675,10 +419,6 @@ fn App() -> impl IntoView {
                     if selected_env.get_untracked().is_some() {
                         detail_resource.refetch();
                     }
-
-                    if selected_history_env.get_untracked().is_some() {
-                        history_resource.refetch();
-                    }
                 } else {
                     set_seconds_left.set(current - 1);
                 }
@@ -690,16 +430,12 @@ fn App() -> impl IntoView {
 
     {
         let set_selected_env = set_selected_env.clone();
-        let set_selected_history_env = set_selected_history_env.clone();
-        let set_page_view = set_page_view.clone();
 
         create_effect(move |_| {
             let window = web_sys::window().unwrap();
 
             let popstate_cb = Closure::<dyn FnMut(Event)>::wrap(Box::new(move |_event: Event| {
                 set_selected_env.set(None);
-                set_selected_history_env.set(None);
-                set_page_view.set(PageView::Dashboard);
             }));
 
             let _ = window.add_event_listener_with_callback(
@@ -740,241 +476,108 @@ fn App() -> impl IntoView {
             >
                 <div style="max-width: 1800px; margin: auto;">
                     <Show
-                        when=move || page_view.get() == PageView::Dashboard
+                        when=move || selected_env.get().is_none()
                         fallback=move || {
-                            if page_view.get() == PageView::Detail {
-                                view! {
-                                    <Transition fallback=|| view! { <p>"Loading detail..."</p> }>
-                                        {move || {
-                                            detail_resource.get().map(|res| match res {
-                                                Err(e) => view! {
-                                                    <>
-                                                        <button
-                                                            on:click=move |_| {
-                                                                if let Some(window) = web_sys::window() {
-                                                                    if let Ok(history) = window.history() {
-                                                                        let _ = history.back();
-                                                                    } else {
-                                                                        set_selected_env.set(None);
-                                                                        set_page_view.set(PageView::Dashboard);
-                                                                    }
+                            view! {
+                                <Transition fallback=|| view! { <p>"Loading detail..."</p> }>
+                                    {move || {
+                                        detail_resource.get().map(|res| match res {
+                                            Err(e) => view! {
+                                                <>
+                                                    <button
+                                                        on:click=move |_| {
+                                                            if let Some(window) = web_sys::window() {
+                                                                if let Ok(history) = window.history() {
+                                                                    let _ = history.back();
                                                                 } else {
                                                                     set_selected_env.set(None);
-                                                                    set_page_view.set(PageView::Dashboard);
                                                                 }
+                                                            } else {
+                                                                set_selected_env.set(None);
                                                             }
-                                                            style="margin-bottom: 12px; border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                        >
-                                                            "← Back to dashboard"
-                                                        </button>
+                                                        }
+                                                        style="margin-bottom: 12px; border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                    >
+                                                        "← Back to dashboard"
+                                                    </button>
 
-                                                        <div style="background: white; border-radius: 12px; padding: 16px; color: #dc2626; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            {e}
-                                                        </div>
-                                                    </>
-                                                }.into_view(),
+                                                    <div style="background: white; border-radius: 12px; padding: 16px; color: #dc2626; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                        {e}
+                                                    </div>
+                                                </>
+                                            }.into_view(),
 
-                                                Ok((env, pretty_json)) => {
-                                                    let pct = calc_pct(env.ok, env.total);
-                                                    let env_for_history = env.clone();
+                                            Ok((env, pretty_json)) => {
+                                                let pct = calc_pct(env.ok, env.total);
 
-                                                    view! {
-                                                        <>
-                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
-                                                                <button
-                                                                    on:click=move |_| {
-                                                                        if let Some(window) = web_sys::window() {
-                                                                            if let Ok(history) = window.history() {
-                                                                                let _ = history.back();
-                                                                            } else {
-                                                                                set_selected_env.set(None);
-                                                                                set_page_view.set(PageView::Dashboard);
-                                                                            }
+                                                view! {
+                                                    <>
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                                                            <button
+                                                                on:click=move |_| {
+                                                                    if let Some(window) = web_sys::window() {
+                                                                        if let Ok(history) = window.history() {
+                                                                            let _ = history.back();
                                                                         } else {
                                                                             set_selected_env.set(None);
-                                                                            set_page_view.set(PageView::Dashboard);
                                                                         }
-                                                                    }
-                                                                    style="border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                                >
-                                                                    "← Back to dashboard"
-                                                                </button>
-
-                                                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                                                    <button
-                                                                        on:click=move |_| detail_resource.refetch()
-                                                                        style="border: none; background: #2563eb; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                                    >
-                                                                        "Refresh selected env"
-                                                                    </button>
-
-                                                                    <button
-                                                                        on:click=move |_| {
-                                                                            if let Some(window) = web_sys::window() {
-                                                                                if let Ok(history) = window.history() {
-                                                                                    let _ = history.push_state_with_url(
-                                                                                        &JsValue::NULL,
-                                                                                        "",
-                                                                                        Some("#history"),
-                                                                                    );
-                                                                                }
-                                                                            }
-                                                                            set_selected_history_env.set(Some(env_for_history.clone()));
-                                                                            set_page_view.set(PageView::History);
-                                                                        }
-                                                                        style="border: none; background: #0f766e; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                                    >
-                                                                        "View history"
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
-                                                                    {env.customer.clone()}
-                                                                </div>
-
-                                                                <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
-                                                                    {env.env_name.clone()}
-                                                                </div>
-
-                                                                <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
-                                                                    <div>{format!("Total: {}", env.total)}</div>
-                                                                    <div>{format!("OK: {}", env.ok)}</div>
-                                                                    <div>{format!("Error: {}", env.err)}</div>
-                                                                    <div>{format!("Health: {:.1}%", pct)}</div>
-                                                                    <div>{format!("Source: {}", env.filename)}</div>
-                                                                </div>
-
-                                                                <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
-                                                                    <div style=format!(
-                                                                        "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
-                                                                        pct,
-                                                                        if env.err == 0 { "#10b981" } else { "#ef4444" }
-                                                                    )></div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.12);">
-                                                                <div style="font-weight: 800; margin-bottom: 10px; color: #f8fafc;">
-                                                                    "Raw JSON"
-                                                                </div>
-                                                                <pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; line-height: 1.42; overflow-x: auto;">
-                                                                    {pretty_json}
-                                                                </pre>
-                                                            </div>
-                                                        </>
-                                                    }.into_view()
-                                                }
-                                            })
-                                        }}
-                                    </Transition>
-                                }.into_view()
-                            } else {
-                                view! {
-                                    <Transition fallback=|| view! { <p>"Loading historical data..."</p> }>
-                                        {move || {
-                                            history_resource.get().map(|res| match res {
-                                                Err(e) => view! {
-                                                    <>
-                                                        <button
-                                                            on:click=move |_| {
-                                                                if let Some(window) = web_sys::window() {
-                                                                    if let Ok(history) = window.history() {
-                                                                        let _ = history.back();
                                                                     } else {
-                                                                        set_selected_history_env.set(None);
-                                                                        set_page_view.set(PageView::Dashboard);
+                                                                        set_selected_env.set(None);
                                                                     }
-                                                                } else {
-                                                                    set_selected_history_env.set(None);
-                                                                    set_page_view.set(PageView::Dashboard);
                                                                 }
-                                                            }
-                                                            style="margin-bottom: 12px; border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                        >
-                                                            "← Back to dashboard"
-                                                        </button>
+                                                                style="border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                            >
+                                                                "← Back to dashboard"
+                                                            </button>
 
-                                                        <div style="background: white; border-radius: 12px; padding: 16px; color: #dc2626; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            {e}
+                                                            <button
+                                                                on:click=move |_| detail_resource.refetch()
+                                                                style="border: none; background: #2563eb; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                            >
+                                                                "Refresh selected env"
+                                                            </button>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
+                                                                {env.customer.clone()}
+                                                            </div>
+
+                                                            <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
+                                                                {env.env_name.clone()}
+                                                            </div>
+
+                                                            <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
+                                                                <div>{format!("Total: {}", env.total)}</div>
+                                                                <div>{format!("OK: {}", env.ok)}</div>
+                                                                <div>{format!("Error: {}", env.err)}</div>
+                                                                <div>{format!("Health: {:.1}%", pct)}</div>
+                                                                <div>{format!("Source: {}", env.filename)}</div>
+                                                            </div>
+
+                                                            <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
+                                                                <div style=format!(
+                                                                    "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
+                                                                    pct,
+                                                                    if env.err == 0 { "#10b981" } else { "#ef4444" }
+                                                                )></div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style="background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.12);">
+                                                            <div style="font-weight: 800; margin-bottom: 10px; color: #f8fafc;">
+                                                                "Raw JSON"
+                                                            </div>
+                                                            <pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; line-height: 1.42; overflow-x: auto;">
+                                                                {pretty_json}
+                                                            </pre>
                                                         </div>
                                                     </>
-                                                }.into_view(),
-
-                                                Ok((env, points)) => {
-                                                    let total_passed: usize = points.iter().map(|p| p.passed).sum();
-                                                    let total_failed: usize = points.iter().map(|p| p.failed).sum();
-                                                    let sample_count = points.len();
-
-                                                    view! {
-                                                        <>
-                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
-                                                                <button
-                                                                    on:click=move |_| {
-                                                                        if let Some(window) = web_sys::window() {
-                                                                            if let Ok(history) = window.history() {
-                                                                                let _ = history.back();
-                                                                            } else {
-                                                                                set_selected_history_env.set(None);
-                                                                                set_page_view.set(PageView::Dashboard);
-                                                                            }
-                                                                        } else {
-                                                                            set_selected_history_env.set(None);
-                                                                            set_page_view.set(PageView::Dashboard);
-                                                                        }
-                                                                    }
-                                                                    style="border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                                >
-                                                                    "← Back to dashboard"
-                                                                </button>
-
-                                                                <button
-                                                                    on:click=move |_| history_resource.refetch()
-                                                                    style="border: none; background: #2563eb; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                                                >
-                                                                    "Refresh history"
-                                                                </button>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
-                                                                    {env.customer.clone()}
-                                                                </div>
-
-                                                                <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
-                                                                    {format!("{} Historical Health", env.env_name)}
-                                                                </div>
-
-                                                                <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
-                                                                    <div>{format!("Samples: {}", sample_count)}</div>
-                                                                    <div>{format!("Passed: {}", total_passed)}</div>
-                                                                    <div>{format!("Failed: {}", total_failed)}</div>
-                                                                    <div>"Showing latest 15 files"</div>
-                                                                </div>
-
-                                                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
-                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span>
-                                                                        <span>"Passed"</span>
-                                                                    </div>
-                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
-                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px;"></span>
-                                                                        <span>"Failed"</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <HistoryBarChart data=points.clone() />
-                                                            </div>
-                                                        </>
-                                                    }.into_view()
-                                                }
-                                            })
-                                        }}
-                                    </Transition>
-                                }.into_view()
+                                                }.into_view()
+                                            }
+                                        })
+                                    }}
+                                </Transition>
                             }
                         }
                     >
@@ -1194,7 +797,6 @@ fn App() -> impl IntoView {
                                                                                     .into_iter()
                                                                                     .map(|item| {
                                                                                         let item_for_click = item.clone();
-                                                                                        let item_for_history = item.clone();
 
                                                                                         let ok_height = if max_bar_value > 0 {
                                                                                             ((item.ok as f32 / max_bar_value as f32) * 60.0).max(4.0)
@@ -1210,77 +812,53 @@ fn App() -> impl IntoView {
 
                                                                                         view! {
                                                                                             <div
-                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;"
+                                                                                                on:click=move |_| {
+                                                                                                    if let Some(window) = web_sys::window() {
+                                                                                                        if let Ok(history) = window.history() {
+                                                                                                            let _ = history.push_state_with_url(
+                                                                                                                &JsValue::NULL,
+                                                                                                                "",
+                                                                                                                Some("#details"),
+                                                                                                            );
+                                                                                                        }
+                                                                                                    }
+                                                                                                    set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                }
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; cursor: pointer;"
                                                                                                 title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
                                                                                             >
-                                                                                                <div
-                                                                                                    on:click=move |_| {
-                                                                                                        if let Some(window) = web_sys::window() {
-                                                                                                            if let Ok(history) = window.history() {
-                                                                                                                let _ = history.push_state_with_url(
-                                                                                                                    &JsValue::NULL,
-                                                                                                                    "",
-                                                                                                                    Some("#details"),
-                                                                                                                );
-                                                                                                            }
-                                                                                                        }
-                                                                                                        set_selected_env.set(Some(item_for_click.clone()));
-                                                                                                        set_page_view.set(PageView::Detail);
-                                                                                                    }
-                                                                                                    style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;"
-                                                                                                >
-                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
-                                                                                                                {item.ok}
-                                                                                                            </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                ok_height,
-                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
+                                                                                                <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                            {item.ok}
                                                                                                         </div>
-
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
-                                                                                                                {item.err}
-                                                                                                            </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                err_height,
-                                                                                                                if item.err > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
-                                                                                                        </div>
+                                                                                                        <div style=format!(
+                                                                                                            "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                            ok_height,
+                                                                                                            if item.ok > 0 { "4px" } else { "1px" }
+                                                                                                        )></div>
                                                                                                     </div>
 
-                                                                                                    <div style="text-align: center;">
-                                                                                                        <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
-                                                                                                            {item.env_name.clone()}
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                            {item.err}
                                                                                                         </div>
-                                                                                                        <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
-                                                                                                            {format!("{}/{}", item.ok, item.total)}
-                                                                                                        </div>
+                                                                                                        <div style=format!(
+                                                                                                            "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                            err_height,
+                                                                                                            if item.err > 0 { "4px" } else { "1px" }
+                                                                                                        )></div>
                                                                                                     </div>
                                                                                                 </div>
 
-                                                                                                <button
-                                                                                                    on:click=move |_| {
-                                                                                                        if let Some(window) = web_sys::window() {
-                                                                                                            if let Ok(history) = window.history() {
-                                                                                                                let _ = history.push_state_with_url(
-                                                                                                                    &JsValue::NULL,
-                                                                                                                    "",
-                                                                                                                    Some("#history"),
-                                                                                                                );
-                                                                                                            }
-                                                                                                        }
-                                                                                                        set_selected_history_env.set(Some(item_for_history.clone()));
-                                                                                                        set_page_view.set(PageView::History);
-                                                                                                    }
-                                                                                                    style="margin-top: 6px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
-                                                                                                >
-                                                                                                    "History"
-                                                                                                </button>
+                                                                                                <div style="text-align: center;">
+                                                                                                    <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                        {item.env_name.clone()}
+                                                                                                    </div>
+                                                                                                    <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
+                                                                                                        {format!("{}/{}", item.ok, item.total)}
+                                                                                                    </div>
+                                                                                                </div>
                                                                                             </div>
                                                                                         }
                                                                                     })

@@ -51,7 +51,6 @@ pub struct HistoricalPoint {
     pub failed: usize,
     pub total: usize,
     pub filename: String,
-    pub contents: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -382,16 +381,12 @@ async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<His
                     }
                 }
 
-                let contents = serde_json::to_string_pretty(&instances)
-                    .unwrap_or_else(|_| "Unable to format file contents".to_string());
-
                 points.push(HistoricalPoint {
                     label: format_history_label(&month, &year, &hhmm),
                     passed,
                     failed,
                     total: passed + failed,
                     filename,
-                    contents,
                 });
             }
             Err(e) => log(&e),
@@ -476,26 +471,16 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 
         let legend_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("right"));
-        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("align"), &JsValue::from_str("center"));
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("labels"), &legend_labels);
 
         let plugins_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&plugins_obj, &JsValue::from_str("legend"), &legend_obj);
-
-        let layout_obj = js_sys::Object::new();
-        let padding_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("left"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("right"), &JsValue::from_f64(8.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("top"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("bottom"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&layout_obj, &JsValue::from_str("padding"), &padding_obj);
 
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("layout"), &layout_obj);
 
         let config = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("doughnut"));
@@ -518,118 +503,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; width: 100%; max-width: 380px; margin: 0; position: relative; display: flex; justify-content: flex-start; align-items: center;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
-        </div>
-    }
-}
-
-#[component]
-fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
-    let canvas_ref = create_node_ref::<html::Canvas>();
-
-    create_effect(move |_| {
-        let Some(canvas) = canvas_ref.get() else {
-            return;
-        };
-
-        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
-        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
-        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
-
-        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
-        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
-        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
-
-        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
-            .ok()
-            .filter(|v| !v.is_undefined() && !v.is_null());
-
-        let Some(chart_ctor) = chart_ctor else {
-            log("Chart.js is not loaded on window.Chart");
-            return;
-        };
-
-        let window = web_sys::window().unwrap();
-        let chart_key = JsValue::from_str("__jde_history_chart");
-
-        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
-            if !existing.is_undefined() && !existing.is_null() {
-                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
-                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
-                        let _ = destroy.call0(&existing);
-                    }
-                }
-            }
-        }
-
-        let dataset_passed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let dataset_failed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let datasets = js_sys::Array::new();
-        datasets.push(&dataset_passed);
-        datasets.push(&dataset_failed);
-
-        let data_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
-
-        let x_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let y_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let x_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
-
-        let y_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
-
-        let scales = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
-
-        let legend = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
-
-        let plugins = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
-
-        let options = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
-
-        let config = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
-
-        let args = js_sys::Array::new();
-        args.push(canvas.as_ref());
-        args.push(&config);
-
-        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
-            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
-                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
-            }
-        }
-    });
-
-    view! {
-        <div style="height: 420px; width: 100%; position: relative;">
+        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -1025,39 +899,80 @@ fn App() -> impl IntoView {
                                                                 </div>
                                                             </div>
 
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <HistoryBarChart data=points.clone() />
-                                                            </div>
+                                                            <div style="display: grid; gap: 10px;">
+                                                                {
+                                                                    points
+                                                                        .into_iter()
+                                                                        .map(|point| {
+                                                                            let health_pct = calc_pct(point.passed, point.total);
 
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="font-weight: 800; margin-bottom: 12px; color: #0f172a;">
-                                                                    "Historical File Contents"
-                                                                </div>
-
-                                                                <div style="display: grid; gap: 10px;">
-                                                                    {
-                                                                        points
-                                                                            .iter()
-                                                                            .map(|p| {
-                                                                                view! {
-                                                                                    <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                                                                        <summary style="cursor: pointer; list-style: none; padding: 12px 14px; font-weight: 800; color: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                                                                                            <span>{p.label.clone()}</span>
-                                                                                            <span style="font-size: 0.72rem; color: #64748b; font-weight: 700;">
-                                                                                                {format!("Passed: {} | Failed: {} | Total: {}", p.passed, p.failed, p.total)}
-                                                                                            </span>
-                                                                                        </summary>
-                                                                                        <div style="padding: 0 14px 14px 14px;">
-                                                                                            <pre style="margin: 0; padding: 12px; background: #0f172a; color: #e2e8f0; border-radius: 8px; white-space: pre-wrap; word-break: break-word; font-size: 0.76rem; line-height: 1.4; overflow-x: auto;">
-                                                                                                {p.contents.clone()}
-                                                                                            </pre>
+                                                                            view! {
+                                                                                <details style="background: white; border-radius: 12px; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                                                    <summary style="list-style: none; cursor: pointer; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #ffffff;">
+                                                                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                                                                            <div style="font-size: 0.84rem; font-weight: 800; color: #0f172a;">
+                                                                                                {point.label.clone()}
+                                                                                            </div>
+                                                                                            <div style="font-size: 0.72rem; color: #64748b;">
+                                                                                                {point.filename.clone()}
+                                                                                            </div>
                                                                                         </div>
-                                                                                    </details>
-                                                                                }
-                                                                            })
-                                                                            .collect_view()
-                                                                    }
-                                                                </div>
+
+                                                                                        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end;">
+                                                                                            <div style="font-size: 0.76rem; color: #334155;">{format!("Passed: {}", point.passed)}</div>
+                                                                                            <div style="font-size: 0.76rem; color: #334155;">{format!("Failed: {}", point.failed)}</div>
+                                                                                            <div style="font-size: 0.76rem; color: #334155;">{format!("Total: {}", point.total)}</div>
+                                                                                            <div style=format!(
+                                                                                                "font-size: 0.78rem; font-weight: 900; color: {};",
+                                                                                                if point.failed == 0 { "#10b981" } else { "#ef4444" }
+                                                                                            )>
+                                                                                                {format!("{:.1}%", health_pct)}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </summary>
+
+                                                                                    <div style="padding: 0 16px 16px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                                                                                        <div style="padding-top: 12px;">
+                                                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                                                                <div style="font-size: 0.74rem; font-weight: 800; color: #334155;">
+                                                                                                    "Health Summary"
+                                                                                                </div>
+                                                                                                <div style="font-size: 0.74rem; color: #64748b;">
+                                                                                                    {format!("{} healthy out of {}", point.passed, point.total)}
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
+                                                                                                <div style=format!(
+                                                                                                    "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
+                                                                                                    health_pct,
+                                                                                                    if point.failed == 0 { "#10b981" } else { "#ef4444" }
+                                                                                                )></div>
+                                                                                            </div>
+
+                                                                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                                                                                                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px;">
+                                                                                                    <div style="font-size: 0.64rem; color: #94a3b8; font-weight: 800; text-transform: uppercase;">"Passed"</div>
+                                                                                                    <div style="font-size: 1rem; color: #10b981; font-weight: 900; margin-top: 4px;">{point.passed}</div>
+                                                                                                </div>
+
+                                                                                                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px;">
+                                                                                                    <div style="font-size: 0.64rem; color: #94a3b8; font-weight: 800; text-transform: uppercase;">"Failed"</div>
+                                                                                                    <div style="font-size: 1rem; color: #ef4444; font-weight: 900; margin-top: 4px;">{point.failed}</div>
+                                                                                                </div>
+
+                                                                                                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px;">
+                                                                                                    <div style="font-size: 0.64rem; color: #94a3b8; font-weight: 800; text-transform: uppercase;">"Total"</div>
+                                                                                                    <div style="font-size: 1rem; color: #0f172a; font-weight: 900; margin-top: 4px;">{point.total}</div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </details>
+                                                                            }
+                                                                        })
+                                                                        .collect_view()
+                                                                }
                                                             </div>
                                                         </>
                                                     }.into_view()
@@ -1181,8 +1096,8 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(380px, 460px) 1fr; gap: 12px; margin-bottom: 14px; align-items: start;">
-                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
                                                                 <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
@@ -1197,9 +1112,7 @@ fn App() -> impl IntoView {
                                                             </div>
                                                         </div>
 
-                                                        <div style="display: flex; justify-content: flex-start; overflow: visible;">
-                                                            <DoughnutChart data=chart_data />
-                                                        </div>
+                                                        <DoughnutChart data=chart_data />
                                                     </div>
 
                                                     <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
@@ -1280,7 +1193,7 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
                                                                             {
                                                                                 group.envs
                                                                                     .into_iter()
@@ -1301,10 +1214,7 @@ fn App() -> impl IntoView {
                                                                                         };
 
                                                                                         view! {
-                                                                                            <div
-                                                                                                style="display: flex; flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 8px;"
-                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
-                                                                                            >
+                                                                                            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;" title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)>
                                                                                                 <div
                                                                                                     on:click=move |_| {
                                                                                                         if let Some(window) = web_sys::window() {
@@ -1319,9 +1229,9 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_env.set(Some(item_for_click.clone()));
                                                                                                         set_page_view.set(PageView::Detail);
                                                                                                     }
-                                                                                                    style="flex: 1; display: flex; align-items: flex-end; gap: 8px; cursor: pointer; min-width: 0;"
+                                                                                                    style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;"
                                                                                                 >
-                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; min-width: 34px;">
+                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
                                                                                                         <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
                                                                                                             <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
                                                                                                                 {item.ok}
@@ -1345,12 +1255,24 @@ fn App() -> impl IntoView {
                                                                                                         </div>
                                                                                                     </div>
 
-                                                                                                    <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center;">
-                                                                                                        <div style="font-size: 0.66rem; font-weight: 900; color: #1e293b; line-height: 1.1; word-break: break-word;">
+                                                                                                    <div style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px; min-height: 42px;">
+                                                                                                        <div
+                                                                                                            style="
+                                                                                                                writing-mode: vertical-rl;
+                                                                                                                text-orientation: mixed;
+                                                                                                                transform: rotate(180deg);
+                                                                                                                font-size: 0.60rem;
+                                                                                                                font-weight: 900;
+                                                                                                                color: #1e293b;
+                                                                                                                line-height: 1;
+                                                                                                                white-space: nowrap;
+                                                                                                            "
+                                                                                                        >
                                                                                                             {item.env_name.clone()}
                                                                                                         </div>
-                                                                                                        <div style="font-size: 0.54rem; color: #64748b; margin-top: 3px;">
-                                                                                                            {format!("OK {} | ERR {} | TOTAL {}", item.ok, item.err, item.total)}
+
+                                                                                                        <div style="font-size: 0.52rem; color: #64748b; line-height: 1;">
+                                                                                                            {format!("{}/{}", item.ok, item.total)}
                                                                                                         </div>
                                                                                                     </div>
                                                                                                 </div>
@@ -1369,7 +1291,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="align-self: center; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem; white-space: nowrap;"
+                                                                                                    style="margin-top: 6px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>

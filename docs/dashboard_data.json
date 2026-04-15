@@ -300,6 +300,56 @@
     "customer_name": "ARCOR"
   },
   {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDEDE1",
+    "health_status": "Failed",
+    "instance_name": "DVJASAIS023",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:06.982844362+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDEDE1",
+    "health_status": "Passed",
+    "instance_name": "DVENT020",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:06.982848349+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Passed; Basic Auth: Passed;",
+    "group_name": "ACORJDEDE1",
+    "health_status": "Passed",
+    "instance_name": "DVAIS022",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:06.982851444+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; DB Service: Passed; BSFN Service: Passed;",
+    "group_name": "ACORJDEDE1",
+    "health_status": "Passed",
+    "instance_name": "DVBSSV024",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:06.982853730+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDEDE1",
+    "health_status": "Failed",
+    "instance_name": "DVJAS021",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:06.982856174+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
     "details": "",
     "group_name": "ACORJDEPS1",
     "health_status": "Not Run",
@@ -417,6 +467,36 @@
     "instance_status": null,
     "server_alias": "ARCOR_vmjdacor001",
     "timestamp": "2026-04-15T05:08:11.905087105+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Passed;",
+    "group_name": "ACORJDEPS1",
+    "health_status": "Passed",
+    "instance_name": "PSJAS011",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:46.862070329+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDEPS1",
+    "health_status": "Passed",
+    "instance_name": "PSENT010",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:46.862076079+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Failed; Basic Auth: Passed;",
+    "group_name": "ACORJDEPS1",
+    "health_status": "Failed",
+    "instance_name": "PSAIS011",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:14:46.862080157+00:00",
     "customer_name": "ARCOR"
   },
   {
@@ -887,6 +967,316 @@
     "instance_status": "RUNNING",
     "server_alias": "ARCOR_vmjdacor001",
     "timestamp": "2026-04-15T05:09:32.537944377+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS056",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689771570+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS051",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689774896+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; DB Service: Passed; BSFN Service: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYBSSV077",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689776780+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJASAIS086",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689779965+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS052",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689781719+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS061",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689783492+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS053",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689786577+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS060",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689788431+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Failed; DB Service: Failed; BSFN Service: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYBSSV076",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689790014+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT073",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689793200+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT075",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689794944+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS054",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689796618+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT070",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689798231+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT074",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689801095+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS059",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689802679+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS058",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689804342+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJASAIS088",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689807137+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJASAIS087",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689810072+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS062",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689812207+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS050",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689816084+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Passed; Basic Auth: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYAIS082",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689828878+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS055",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689830541+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJASAIS090",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689834679+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS057",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689836293+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS063",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689837826+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Passed; Basic Auth: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYAIS080",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689841212+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJAS064",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689843296+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT071",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689844949+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Port Test: Passed; UBE: Passed; BSFN: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYENT072",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689846482+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Interactive App: Passed; UBE: Passed; OVR: Failed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Failed",
+    "instance_name": "PYJASAIS089",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689849358+00:00",
+    "customer_name": "ARCOR"
+  },
+  {
+    "details": "Login: Passed; Form Service App: Passed; Form Service UBE: Passed; JWT Trust Login: Passed; Basic Auth: Passed;",
+    "group_name": "ACORJDETS1",
+    "health_status": "Passed",
+    "instance_name": "PYAIS081",
+    "instance_status": "RUNNING",
+    "server_alias": "ARCOR_vmjdacor001",
+    "timestamp": "2026-04-15T10:16:29.689851341+00:00",
     "customer_name": "ARCOR"
   },
   {

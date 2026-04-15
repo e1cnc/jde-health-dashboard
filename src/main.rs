@@ -4,8 +4,8 @@ use gloo_net::http::Request;
 use gloo_timers::callback::Interval;
 use futures::stream::{FuturesUnordered, StreamExt};
 use urlencoding::encode;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::console;
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use web_sys::{console, Event};
 use std::collections::BTreeMap;
 
 const REFRESH_SECONDS: i32 = 60;
@@ -428,6 +428,31 @@ fn App() -> impl IntoView {
         });
     }
 
+    {
+        let set_selected_env = set_selected_env.clone();
+
+        create_effect(move |_| {
+            let window = web_sys::window().unwrap();
+
+            let popstate_cb = Closure::<dyn FnMut(Event)>::wrap(Box::new(move |_event: Event| {
+                set_selected_env.set(None);
+            }));
+
+            let _ = window.add_event_listener_with_callback(
+                "popstate",
+                popstate_cb.as_ref().unchecked_ref(),
+            );
+
+            on_cleanup(move || {
+                let _ = window.remove_event_listener_with_callback(
+                    "popstate",
+                    popstate_cb.as_ref().unchecked_ref(),
+                );
+                drop(popstate_cb);
+            });
+        });
+    }
+
     let refresh_pct = move || {
         let elapsed = REFRESH_SECONDS - seconds_left.get();
         (elapsed as f32 / REFRESH_SECONDS as f32) * 100.0
@@ -437,7 +462,18 @@ fn App() -> impl IntoView {
         <>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-            <div style="padding: 14px; background: #f8fafc; min-height: 100vh; font-family: Arial, sans-serif;">
+            <div
+                style="
+                    padding: 14px;
+                    min-height: 100vh;
+                    font-family: Arial, sans-serif;
+                    background:
+                        linear-gradient(rgba(248,250,252,0.95), rgba(248,250,252,0.95)),
+                        url('./image-2.jpg') center center / 520px auto no-repeat,
+                        #f8fafc;
+                    background-attachment: fixed;
+                "
+            >
                 <div style="max-width: 1800px; margin: auto;">
                     <Show
                         when=move || selected_env.get().is_none()
@@ -449,7 +485,17 @@ fn App() -> impl IntoView {
                                             Err(e) => view! {
                                                 <>
                                                     <button
-                                                        on:click=move |_| set_selected_env.set(None)
+                                                        on:click=move |_| {
+                                                            if let Some(window) = web_sys::window() {
+                                                                if let Ok(history) = window.history() {
+                                                                    let _ = history.back();
+                                                                } else {
+                                                                    set_selected_env.set(None);
+                                                                }
+                                                            } else {
+                                                                set_selected_env.set(None);
+                                                            }
+                                                        }
                                                         style="margin-bottom: 12px; border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
                                                     >
                                                         "← Back to dashboard"
@@ -468,7 +514,17 @@ fn App() -> impl IntoView {
                                                     <>
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
                                                             <button
-                                                                on:click=move |_| set_selected_env.set(None)
+                                                                on:click=move |_| {
+                                                                    if let Some(window) = web_sys::window() {
+                                                                        if let Ok(history) = window.history() {
+                                                                            let _ = history.back();
+                                                                        } else {
+                                                                            set_selected_env.set(None);
+                                                                        }
+                                                                    } else {
+                                                                        set_selected_env.set(None);
+                                                                    }
+                                                                }
                                                                 style="border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
                                                             >
                                                                 "← Back to dashboard"
@@ -756,7 +812,18 @@ fn App() -> impl IntoView {
 
                                                                                         view! {
                                                                                             <div
-                                                                                                on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
+                                                                                                on:click=move |_| {
+                                                                                                    if let Some(window) = web_sys::window() {
+                                                                                                        if let Ok(history) = window.history() {
+                                                                                                            let _ = history.push_state_with_url(
+                                                                                                                &JsValue::NULL,
+                                                                                                                "",
+                                                                                                                Some("#details"),
+                                                                                                            );
+                                                                                                        }
+                                                                                                    }
+                                                                                                    set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                }
                                                                                                 style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; cursor: pointer;"
                                                                                                 title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
                                                                                             >

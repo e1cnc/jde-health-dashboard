@@ -503,119 +503,60 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; max-width: 260px; margin: 0; position: relative;">
+        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
 }
 
 #[component]
-fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
-    let canvas_ref = create_node_ref::<html::Canvas>();
-
-    create_effect(move |_| {
-        let Some(canvas) = canvas_ref.get() else {
-            return;
-        };
-
-        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
-        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
-        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
-
-        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
-        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
-        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
-
-        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
-            .ok()
-            .filter(|v| !v.is_undefined() && !v.is_null());
-
-        let Some(chart_ctor) = chart_ctor else {
-            log("Chart.js is not loaded on window.Chart");
-            return;
-        };
-
-        let window = web_sys::window().unwrap();
-        let chart_key = JsValue::from_str("__jde_history_chart");
-
-        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
-            if !existing.is_undefined() && !existing.is_null() {
-                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
-                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
-                        let _ = destroy.call0(&existing);
-                    }
-                }
-            }
-        }
-
-        let dataset_passed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let dataset_failed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let datasets = js_sys::Array::new();
-        datasets.push(&dataset_passed);
-        datasets.push(&dataset_failed);
-
-        let data_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
-
-        let x_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let y_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let x_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
-
-        let y_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
-
-        let scales = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
-
-        let legend = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
-
-        let plugins = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
-
-        let options = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
-
-        let config = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
-
-        let args = js_sys::Array::new();
-        args.push(canvas.as_ref());
-        args.push(&config);
-
-        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
-            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
-                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
-            }
-        }
-    });
-
+fn HistoryTable(data: Vec<HistoricalPoint>) -> impl IntoView {
     view! {
-        <div style="height: 420px; width: 100%; position: relative;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
+        <div style="width: 100%; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                <thead>
+                    <tr style="background: #f8fafc; color: #334155;">
+                        <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Sample"</th>
+                        <th style="text-align: right; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Passed"</th>
+                        <th style="text-align: right; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Failed"</th>
+                        <th style="text-align: right; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Total"</th>
+                        <th style="text-align: right; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Health %"</th>
+                        <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800;">"Filename"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        data.into_iter().map(|point| {
+                            let pct = calc_pct(point.passed, point.total);
+                            view! {
+                                <tr style="border-bottom: 1px solid #e2e8f0;">
+                                    <td style="padding: 10px 12px; color: #0f172a; font-weight: 700; white-space: nowrap;">
+                                        {point.label}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: right; color: #10b981; font-weight: 800;">
+                                        {point.passed}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: right; color: #ef4444; font-weight: 800;">
+                                        {point.failed}
+                                    </td>
+                                    <td style="padding: 10px 12px; text-align: right; color: #0f172a; font-weight: 700;">
+                                        {point.total}
+                                    </td>
+                                    <td style=format!(
+                                        "padding: 10px 12px; text-align: right; font-weight: 800; color: {};",
+                                        if point.failed == 0 { "#10b981" } else { "#ef4444" }
+                                    )>
+                                        {format!("{:.1}%", pct)}
+                                    </td>
+                                    <td style="padding: 10px 12px; color: #475569; min-width: 280px; word-break: break-word;">
+                                        {point.filename}
+                                    </td>
+                                </tr>
+                            }
+                        }).collect_view()
+                    }
+                </tbody>
+            </table>
         </div>
     }
 }
@@ -1011,7 +952,7 @@ fn App() -> impl IntoView {
                                                             </div>
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <HistoryBarChart data=points.clone() />
+                                                                <HistoryTable data=points.clone() />
                                                             </div>
                                                         </>
                                                     }.into_view()
@@ -1135,7 +1076,7 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(420px, 540px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
                                                     <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
@@ -1232,7 +1173,7 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
                                                                             {
                                                                                 group.envs
                                                                                     .into_iter()
@@ -1240,20 +1181,23 @@ fn App() -> impl IntoView {
                                                                                         let item_for_click = item.clone();
                                                                                         let item_for_history = item.clone();
 
-                                                                                        let ok_height = if max_bar_value > 0 {
-                                                                                            ((item.ok as f32 / max_bar_value as f32) * 60.0).max(if item.ok > 0 { 4.0 } else { 1.0 })
+                                                                                        let ok_width = if max_bar_value > 0 {
+                                                                                            ((item.ok as f32 / max_bar_value as f32) * 100.0).max(if item.ok > 0 { 4.0 } else { 1.0 })
                                                                                         } else {
                                                                                             1.0
                                                                                         };
 
-                                                                                        let err_height = if max_bar_value > 0 {
-                                                                                            ((item.err as f32 / max_bar_value as f32) * 60.0).max(if item.err > 0 { 4.0 } else { 1.0 })
+                                                                                        let err_width = if max_bar_value > 0 {
+                                                                                            ((item.err as f32 / max_bar_value as f32) * 100.0).max(if item.err > 0 { 4.0 } else { 1.0 })
                                                                                         } else {
                                                                                             1.0
                                                                                         };
 
                                                                                         view! {
-                                                                                            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;" title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)>
+                                                                                            <div
+                                                                                                style="display: flex; flex-direction: column; gap: 4px;"
+                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
+                                                                                            >
                                                                                                 <div
                                                                                                     on:click=move |_| {
                                                                                                         if let Some(window) = web_sys::window() {
@@ -1268,39 +1212,42 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_env.set(Some(item_for_click.clone()));
                                                                                                         set_page_view.set(PageView::Detail);
                                                                                                     }
-                                                                                                    style="width: 100%; display: flex; flex-direction: row; align-items: end; justify-content: center; gap: 6px; cursor: pointer;"
+                                                                                                    style="cursor: pointer;"
                                                                                                 >
-                                                                                                    <div style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.60rem; font-weight: 900; color: #1e293b; line-height: 1; white-space: nowrap;">
-                                                                                                        {item.env_name.clone()}
+                                                                                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                                                                                        <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                            {item.env_name.clone()}
+                                                                                                        </div>
+                                                                                                        <div style="font-size: 0.52rem; color: #64748b;">
+                                                                                                            {format!("{}/{}", item.ok, item.total)}
+                                                                                                        </div>
                                                                                                     </div>
 
-                                                                                                    <div style="display: flex; align-items: end; justify-content: center; gap: 4px; height: 64px;">
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                    <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                                                                                                        <div style="display: flex; align-items: center; gap: 4px; min-width: 34px;">
                                                                                                             <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
                                                                                                                 {item.ok}
                                                                                                             </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                ok_height,
-                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
+                                                                                                            <div style="height: 12px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                                                                                                <div style=format!(
+                                                                                                                    "height: 100%; width: {:.2}%; background: #10b981; border-radius: 999px;",
+                                                                                                                    ok_width
+                                                                                                                )></div>
+                                                                                                            </div>
                                                                                                         </div>
 
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="display: flex; align-items: center; gap: 4px; min-width: 34px;">
                                                                                                             <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
                                                                                                                 {item.err}
                                                                                                             </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                err_height,
-                                                                                                                if item.err > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
+                                                                                                            <div style="height: 12px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                                                                                                <div style=format!(
+                                                                                                                    "height: 100%; width: {:.2}%; background: #ef4444; border-radius: 999px;",
+                                                                                                                    err_width
+                                                                                                                )></div>
+                                                                                                            </div>
                                                                                                         </div>
                                                                                                     </div>
-                                                                                                </div>
-
-                                                                                                <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
-                                                                                                    {format!("{}/{}", item.ok, item.total)}
                                                                                                 </div>
 
                                                                                                 <button
@@ -1317,7 +1264,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="margin-top: 2px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
+                                                                                                    style="align-self: flex-start; margin-top: 2px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>

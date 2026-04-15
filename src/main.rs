@@ -699,7 +699,7 @@ fn App() -> impl IntoView {
                                                     </div>
                                                 </div>
 
-                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: stretch;">
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; align-items: stretch;">
                                                     {
                                                         customer_groups
                                                             .into_iter()
@@ -709,27 +709,27 @@ fn App() -> impl IntoView {
                                                                 let max_bar_value = group.envs.iter().map(|e| e.total).max().unwrap_or(1);
 
                                                                 view! {
-                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 320px; display: flex; flex-direction: column;">
-                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px;">
+                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 220px; display: flex; flex-direction: column;">
+                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
                                                                             <div>
-                                                                                <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
+                                                                                <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                     "CUSTOMER"
                                                                                 </div>
 
-                                                                                <div style="font-size: 1rem; font-weight: 900; color: #0f172a; line-height: 1.15;">
+                                                                                <div style="font-size: 0.88rem; font-weight: 900; color: #0f172a; line-height: 1.1;">
                                                                                     {group.customer.clone()}
                                                                                 </div>
                                                                             </div>
 
                                                                             <div style=format!(
-                                                                                "font-size: 0.68rem; font-weight: 800; padding: 4px 8px; border-radius: 999px; background: {}; color: white;",
+                                                                                "font-size: 0.60rem; font-weight: 800; padding: 3px 7px; border-radius: 999px; background: {}; color: white;",
                                                                                 if customer_healthy { "#10b981" } else { "#ef4444" }
                                                                             )>
                                                                                 {if customer_healthy { "HEALTHY" } else { "ISSUES" }}
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 12px; min-height: 180px; padding: 12px 8px 8px 8px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
                                                                             {
                                                                                 group.envs
                                                                                     .into_iter()
@@ -737,52 +737,52 @@ fn App() -> impl IntoView {
                                                                                         let item_for_click = item.clone();
 
                                                                                         let ok_height = if max_bar_value > 0 {
-                                                                                            ((item.ok as f32 / max_bar_value as f32) * 120.0).max(8.0)
+                                                                                            ((item.ok as f32 / max_bar_value as f32) * 60.0).max(4.0)
                                                                                         } else {
-                                                                                            8.0
+                                                                                            4.0
                                                                                         };
 
                                                                                         let err_height = if max_bar_value > 0 {
-                                                                                            ((item.err as f32 / max_bar_value as f32) * 120.0).max(if item.err > 0 { 8.0 } else { 2.0 })
+                                                                                            ((item.err as f32 / max_bar_value as f32) * 60.0).max(if item.err > 0 { 4.0 } else { 1.0 })
                                                                                         } else {
-                                                                                            2.0
+                                                                                            1.0
                                                                                         };
 
                                                                                         view! {
                                                                                             <div
                                                                                                 on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
-                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 8px; cursor: pointer;"
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; cursor: pointer;"
                                                                                                 title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
                                                                                             >
-                                                                                                <div style="height: 132px; display: flex; align-items: end; justify-content: center; gap: 7px; width: 100%;">
-                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; width: 28px;">
-                                                                                                        <div style="font-size: 0.60rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
                                                                                                             {item.ok}
                                                                                                         </div>
                                                                                                         <div style=format!(
-                                                                                                            "width: 100%; height: {:.2}px; background: #10b981; border-radius: 6px 6px 0 0; min-height: {};",
+                                                                                                            "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
                                                                                                             ok_height,
-                                                                                                            if item.ok > 0 { "8px" } else { "2px" }
+                                                                                                            if item.ok > 0 { "4px" } else { "1px" }
                                                                                                         )></div>
                                                                                                     </div>
 
-                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; width: 28px;">
-                                                                                                        <div style="font-size: 0.60rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
                                                                                                             {item.err}
                                                                                                         </div>
                                                                                                         <div style=format!(
-                                                                                                            "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 6px 6px 0 0; min-height: {};",
+                                                                                                            "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
                                                                                                             err_height,
-                                                                                                            if item.err > 0 { "8px" } else { "2px" }
+                                                                                                            if item.err > 0 { "4px" } else { "1px" }
                                                                                                         )></div>
                                                                                                     </div>
                                                                                                 </div>
 
                                                                                                 <div style="text-align: center;">
-                                                                                                    <div style="font-size: 0.76rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                    <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
                                                                                                         {item.env_name.clone()}
                                                                                                     </div>
-                                                                                                    <div style="font-size: 0.60rem; color: #64748b; margin-top: 4px;">
+                                                                                                    <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
                                                                                                         {format!("{}/{}", item.ok, item.total)}
                                                                                                     </div>
                                                                                                 </div>
@@ -793,33 +793,33 @@ fn App() -> impl IntoView {
                                                                             }
                                                                         </div>
 
-                                                                        <div style="display: flex; justify-content: center; gap: 14px; margin-top: 10px; font-size: 0.68rem; color: #475569;">
-                                                                            <div style="display: flex; align-items: center; gap: 6px;">
-                                                                                <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 3px;"></span>
+                                                                        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 6px; font-size: 0.58rem; color: #475569;">
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span>
                                                                                 <span>"Passed"</span>
                                                                             </div>
-                                                                            <div style="display: flex; align-items: center; gap: 6px;">
-                                                                                <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 3px;"></span>
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span>
                                                                                 <span>"Failed"</span>
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="margin-top: auto; padding-top: 12px;">
-                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #e2e8f0;">
-                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
-                                                                                    <span style="font-size: 0.70rem; font-weight: 800; color: #334155;">
+                                                                        <div style="margin-top: auto; padding-top: 8px;">
+                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 8px; border: 1px solid #e2e8f0;">
+                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                                                                    <span style="font-size: 0.62rem; font-weight: 800; color: #334155;">
                                                                                         "Customer Summary"
                                                                                     </span>
 
                                                                                     <span style=format!(
-                                                                                        "font-size: 0.76rem; font-weight: 900; color: {};",
+                                                                                        "font-size: 0.68rem; font-weight: 900; color: {};",
                                                                                         if customer_healthy { "#10b981" } else { "#ef4444" }
                                                                                     )>
                                                                                         {format!("{:.1}%", customer_pct)}
                                                                                     </span>
                                                                                 </div>
 
-                                                                                <div style="background: #e2e8f0; height: 7px; border-radius: 999px; overflow: hidden;">
+                                                                                <div style="background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
                                                                                     <div style=format!(
                                                                                         "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
                                                                                         customer_pct,
@@ -827,7 +827,7 @@ fn App() -> impl IntoView {
                                                                                     )></div>
                                                                                 </div>
 
-                                                                                <div style="display: flex; justify-content: space-between; margin-top: 7px; font-size: 0.66rem; color: #64748b;">
+                                                                                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.58rem; color: #64748b;">
                                                                                     <span>{format!("OK {}", group.ok)}</span>
                                                                                     <span>{format!("ERR {}", group.err)}</span>
                                                                                     <span>{format!("TOTAL {}", group.total)}</span>

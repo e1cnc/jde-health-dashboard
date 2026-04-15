@@ -465,13 +465,22 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(18.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
         let legend_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("right"));
+        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("align"), &JsValue::from_str("center"));
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("labels"), &legend_labels);
+
+        let layout_obj = js_sys::Object::new();
+        let padding_obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("left"), &JsValue::from_f64(0.0));
+        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("right"), &JsValue::from_f64(8.0));
+        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("top"), &JsValue::from_f64(0.0));
+        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("bottom"), &JsValue::from_f64(0.0));
+        let _ = js_sys::Reflect::set(&layout_obj, &JsValue::from_str("padding"), &padding_obj);
 
         let plugins_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&plugins_obj, &JsValue::from_str("legend"), &legend_obj);
@@ -479,8 +488,9 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("58%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("layout"), &layout_obj);
 
         let config = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("doughnut"));
@@ -503,8 +513,8 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
+        <div style="height: 180px; width: 100%; max-width: 360px; margin: 0; position: relative;">
+            <canvas node_ref=canvas_ref style="width: 100%; height: 100%; display: block;"></canvas>
         </div>
     }
 }
@@ -1135,7 +1145,7 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(420px, 560px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
                                                     <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>

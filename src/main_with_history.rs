@@ -15,8 +15,6 @@ const TICK_MS: u32 = 1000;
 pub struct HealthInstance {
     pub instance_status: Option<String>,
     pub health_status: Option<String>,
-    pub instance_name: Option<String>,
-    pub details: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -641,7 +639,7 @@ fn App() -> impl IntoView {
                     let raw_json = fetch_json_file(&env.filename).await?;
                     let pretty = serde_json::to_string_pretty(&raw_json)
                         .map_err(|e| format!("Failed to format JSON: {}", e))?;
-                    Ok::<(EnvStatus, Vec<HealthInstance>, String), String>((env, raw_json, pretty))
+                    Ok::<(EnvStatus, String), String>((env, pretty))
                 }
                 None => Err("No environment selected.".to_string()),
             }
@@ -776,7 +774,7 @@ fn App() -> impl IntoView {
                                                     </>
                                                 }.into_view(),
 
-                                                Ok((env, raw_json, pretty_json)) => {
+                                                Ok((env, pretty_json)) => {
                                                     let pct = calc_pct(env.ok, env.total);
                                                     let env_for_history = env.clone();
 
@@ -854,49 +852,6 @@ fn App() -> impl IntoView {
                                                                         pct,
                                                                         if env.err == 0 { "#10b981" } else { "#ef4444" }
                                                                     )></div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="font-weight: 800; margin-bottom: 10px; color: #0f172a;">
-                                                                    "Instance Details"
-                                                                </div>
-
-                                                                <div style="display: grid; gap: 10px;">
-                                                                    {
-                                                                        raw_json
-                                                                            .iter()
-                                                                            .enumerate()
-                                                                            .map(|(idx, item)| {
-                                                                                view! {
-                                                                                    <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc;">
-                                                                                        <div style="font-size: 0.72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px;">
-                                                                                            {format!("Instance {}", idx + 1)}
-                                                                                        </div>
-
-                                                                                        <div style="display: grid; gap: 6px; color: #334155; font-size: 0.82rem;">
-                                                                                            <div>
-                                                                                                <strong>"Instance Name: "</strong>
-                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Instance Status: "</strong>
-                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Health Status: "</strong>
-                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Details: "</strong>
-                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                }
-                                                                            })
-                                                                            .collect_view()
-                                                                    }
                                                                 </div>
                                                             </div>
 

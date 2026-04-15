@@ -319,7 +319,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("backgroundColor"), &colors_js);
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderColor"), &JsValue::from_str("#ffffff"));
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderWidth"), &JsValue::from_f64(2.0));
-        let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("hoverOffset"), &JsValue::from_f64(6.0));
+        let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("hoverOffset"), &JsValue::from_f64(8.0));
 
         let datasets = js_sys::Array::new();
         datasets.push(&dataset);
@@ -334,7 +334,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(12.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
@@ -348,7 +348,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("60%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
 
         let config = js_sys::Object::new();
@@ -372,7 +372,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; max-width: 340px; margin: 0 auto; position: relative;">
+        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -525,13 +525,17 @@ fn App() -> impl IntoView {
                             }
                         }
                     >
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin-bottom: 16px;">
-                            <div style="justify-self: start;">
-                                <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 12px; width: fit-content;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
+                                    "JDE Environment Health Dashboard"
+                                </h2>
+
+                                <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content;">
                                     <button
                                         on:click=move |_| set_filter.set(Filter::All)
                                         style=move || format!(
-                                            "border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.88rem; letter-spacing: 0.2px; background: {}; color: {};",
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
                                             if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
                                             if filter.get() == Filter::All { "white" } else { "#64748b" }
                                         )
@@ -542,7 +546,7 @@ fn App() -> impl IntoView {
                                     <button
                                         on:click=move |_| set_filter.set(Filter::Failed)
                                         style=move || format!(
-                                            "border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.88rem; letter-spacing: 0.2px; background: {}; color: {};",
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
                                             if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
                                             if filter.get() == Filter::Failed { "white" } else { "#64748b" }
                                         )
@@ -553,7 +557,7 @@ fn App() -> impl IntoView {
                                     <button
                                         on:click=move |_| set_filter.set(Filter::Healthy)
                                         style=move || format!(
-                                            "border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 0.88rem; letter-spacing: 0.2px; background: {}; color: {};",
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
                                             if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
                                             if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
                                         )
@@ -563,38 +567,30 @@ fn App() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div style="justify-self: center; text-align: center;">
-                                <h2 style="margin: 0; color: #1d4ed8; font-weight: 900; letter-spacing: 0.2px; font-size: 1.22rem;">
-                                    "JDE Environment Health Dashboard"
-                                </h2>
-                            </div>
-
-                            <div style="justify-self: end;">
-                                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end;">
-                                    <div style="min-width: 230px;">
-                                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.78rem; color: #64748b; font-weight: 700;">
-                                            <span>"Auto refresh"</span>
-                                            <span>{move || format!("{}s", seconds_left.get())}</span>
-                                        </div>
-
-                                        <div style="background: #dbeafe; height: 8px; border-radius: 999px; overflow: hidden;">
-                                            <div style=move || format!(
-                                                "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
-                                                refresh_pct()
-                                            )></div>
-                                        </div>
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <div style="min-width: 220px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
+                                        <span>"Auto refresh"</span>
+                                        <span>{move || format!("{}s", seconds_left.get())}</span>
                                     </div>
 
-                                    <button
-                                        on:click=move |_| {
-                                            set_seconds_left.set(REFRESH_SECONDS);
-                                            health_resource.refetch();
-                                        }
-                                        style="border: none; background: #2563eb; color: white; padding: 10px 18px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 0.92rem;"
-                                    >
-                                        "Refresh now"
-                                    </button>
+                                    <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
+                                        <div style=move || format!(
+                                            "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
+                                            refresh_pct()
+                                        )></div>
+                                    </div>
                                 </div>
+
+                                <button
+                                    on:click=move |_| {
+                                        set_seconds_left.set(REFRESH_SECONDS);
+                                        health_resource.refetch();
+                                    }
+                                    style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                >
+                                    "Refresh now"
+                                </button>
                             </div>
                         </div>
 
@@ -637,19 +633,18 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(360px, 520px) 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch;">
-                                                    <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
-                                                                <div style="color: #94a3b8; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;">
+                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
                                                                     "Customer Distribution"
                                                                 </div>
-                                                                <div style="color: #0f172a; font-size: 0.95rem; font-weight: 900; margin-top: 6px;">
+                                                                <div style="color: #0f172a; font-size: 0.92rem; font-weight: 900; margin-top: 4px;">
                                                                     "Instances by customer"
                                                                 </div>
                                                             </div>
-
-                                                            <div style="font-size: 0.78rem; color: #64748b; font-weight: 700;">
+                                                            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700;">
                                                                 {format!("{} customers", total_customers)}
                                                             </div>
                                                         </div>
@@ -657,22 +652,39 @@ fn App() -> impl IntoView {
                                                         <DoughnutChart data=chart_data />
                                                     </div>
 
-                                                    <div style="display: grid; grid-template-rows: auto auto; gap: 12px;">
-                                                        <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px;">
-                                                                <span style="font-size: 0.98rem; font-weight: 900; color: #0f172a; letter-spacing: 0.2px;">
-                                                                    "OVERALL HEALTH"
-                                                                </span>
+                                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
+                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
+                                                        </div>
 
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
+                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
+                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
+                                                        </div>
+
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); grid-column: span 2;">
+                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                                <span style="font-weight: 800; color: #1e293b; font-size: 0.82rem;">"OVERALL HEALTH"</span>
                                                                 <span style=format!(
-                                                                    "font-size: 1.05rem; font-weight: 900; color: {};",
+                                                                    "font-weight: 900; font-size: 0.92rem; color: {};",
                                                                     if health_pct > 90.0 { "#10b981" } else { "#ef4444" }
                                                                 )>
                                                                     {format!("{:.1}%", health_pct)}
                                                                 </span>
                                                             </div>
 
-                                                            <div style="background: #e5e7eb; height: 10px; border-radius: 999px; overflow: hidden;">
+                                                            <div style="background: #f1f5f9; height: 8px; border-radius: 999px; overflow: hidden;">
                                                                 <div style=format!(
                                                                     "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
                                                                     if health_pct > 90.0 { "#10b981" } else { "#ef4444" },
@@ -680,147 +692,134 @@ fn App() -> impl IntoView {
                                                                 )></div>
                                                             </div>
 
-                                                            <div style="margin-top: 10px; font-size: 0.84rem; color: #64748b;">
+                                                            <div style="margin-top: 8px; font-size: 0.72rem; color: #64748b;">
                                                                 {format!("{} healthy out of {} instances", total_ok, total_inst)}
-                                                            </div>
-                                                        </div>
-
-                                                        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
-                                                            <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;">
-                                                                    "Customers"
-                                                                </div>
-                                                                <div style="font-size: 1.85rem; font-weight: 900; color: #0f172a; margin-top: 10px;">
-                                                                    {total_customers}
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;">
-                                                                    "Instances"
-                                                                </div>
-                                                                <div style="font-size: 1.85rem; font-weight: 900; color: #0f172a; margin-top: 10px;">
-                                                                    {total_inst}
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;">
-                                                                    "Healthy"
-                                                                </div>
-                                                                <div style="font-size: 1.85rem; font-weight: 900; color: #10b981; margin-top: 10px;">
-                                                                    {total_ok}
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 8px rgba(15,23,42,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;">
-                                                                    "Errors/Failed"
-                                                                </div>
-                                                                <div style="font-size: 1.85rem; font-weight: 900; color: #ef4444; margin-top: 10px;">
-                                                                    {total_err}
-                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 12px; align-items: stretch;">
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; align-items: stretch;">
                                                     {
                                                         customer_groups
                                                             .into_iter()
                                                             .map(|group| {
                                                                 let customer_pct = calc_pct(group.ok, group.total);
                                                                 let customer_healthy = group.err == 0;
-                                                                let env_count = group.envs.len();
+                                                                let max_bar_value = group.envs.iter().map(|e| e.total).max().unwrap_or(1);
 
                                                                 view! {
-                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 420px; display: flex; flex-direction: column;">
-                                                                        <div>
-                                                                            <div style="color: #94a3b8; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
-                                                                                "CUSTOMER"
+                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 220px; display: flex; flex-direction: column;">
+                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+                                                                            <div>
+                                                                                <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
+                                                                                    "CUSTOMER"
+                                                                                </div>
+
+                                                                                <div style="font-size: 0.88rem; font-weight: 900; color: #0f172a; line-height: 1.1;">
+                                                                                    {group.customer.clone()}
+                                                                                </div>
                                                                             </div>
 
-                                                                            <div style="font-size: 0.98rem; font-weight: 900; color: #0f172a; line-height: 1.15; margin-bottom: 10px;">
-                                                                                {group.customer.clone()}
-                                                                            </div>
-
-                                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
-                                                                                {
-                                                                                    group.envs
-                                                                                        .into_iter()
-                                                                                        .map(|item| {
-                                                                                            let is_healthy = item.err == 0;
-                                                                                            let pct = calc_pct(item.ok, item.total);
-                                                                                            let item_for_click = item.clone();
-
-                                                                                            view! {
-                                                                                                <div
-                                                                                                    on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
-                                                                                                    style=format!(
-                                                                                                        "background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-top: 3px solid {}; cursor: pointer; min-height: 205px; display: flex; flex-direction: column;",
-                                                                                                        if is_healthy { "#10b981" } else { "#ef4444" }
-                                                                                                    )
-                                                                                                >
-                                                                                                    <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
-                                                                                                        {item.customer.clone()}
-                                                                                                    </div>
-
-                                                                                                    <div style="color: #1e293b; font-size: 0.90rem; font-weight: 900; margin-bottom: 7px; line-height: 1.05;">
-                                                                                                        {item.env_name.clone()}
-                                                                                                    </div>
-
-                                                                                                    <div style="display: grid; gap: 2px; margin-bottom: 7px; font-size: 0.68rem; color: #475569;">
-                                                                                                        <div>{format!("T: {}", item.total)}</div>
-                                                                                                        <div>{format!("OK: {}", item.ok)}</div>
-                                                                                                        <div>{format!("Err: {}", item.err)}</div>
-                                                                                                    </div>
-
-                                                                                                    <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 7px;">
-                                                                                                        <div>
-                                                                                                            <div style=format!(
-                                                                                                                "font-weight: 800; font-size: 0.62rem; color: {};",
-                                                                                                                if is_healthy { "#059669" } else { "#dc2626" }
-                                                                                                            )>
-                                                                                                                {if is_healthy { "HEALTHY" } else { "ERROR" }}
-                                                                                                            </div>
-
-                                                                                                            <div style="font-size: 0.60rem; color: #64748b;">
-                                                                                                                "Click for JSON"
-                                                                                                            </div>
-                                                                                                        </div>
-
-                                                                                                        <div style=format!(
-                                                                                                            "font-size: 1rem; font-weight: 900; color: {};",
-                                                                                                            if is_healthy { "#10b981" } else { "#ef4444" }
-                                                                                                        )>
-                                                                                                            {format!("{:.0}%", pct)}
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            }
-                                                                                        })
-                                                                                        .collect_view()
-                                                                                }
+                                                                            <div style=format!(
+                                                                                "font-size: 0.60rem; font-weight: 800; padding: 3px 7px; border-radius: 999px; background: {}; color: white;",
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                            )>
+                                                                                {if customer_healthy { "HEALTHY" } else { "ISSUES" }}
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="margin-top: auto; padding-top: 12px;">
-                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 10px; border: 1px solid #e2e8f0;">
-                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
-                                                                                    <span style="font-size: 0.70rem; font-weight: 800; color: #334155;">
-                                                                                        {format!("Group Errors / {} envs", env_count)}
+                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                            {
+                                                                                group.envs
+                                                                                    .into_iter()
+                                                                                    .map(|item| {
+                                                                                        let item_for_click = item.clone();
+
+                                                                                        let ok_height = if max_bar_value > 0 {
+                                                                                            ((item.ok as f32 / max_bar_value as f32) * 60.0).max(4.0)
+                                                                                        } else {
+                                                                                            4.0
+                                                                                        };
+
+                                                                                        let err_height = if max_bar_value > 0 {
+                                                                                            ((item.err as f32 / max_bar_value as f32) * 60.0).max(if item.err > 0 { 4.0 } else { 1.0 })
+                                                                                        } else {
+                                                                                            1.0
+                                                                                        };
+
+                                                                                        view! {
+                                                                                            <div
+                                                                                                on:click=move |_| set_selected_env.set(Some(item_for_click.clone()))
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px; cursor: pointer;"
+                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
+                                                                                            >
+                                                                                                <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                            {item.ok}
+                                                                                                        </div>
+                                                                                                        <div style=format!(
+                                                                                                            "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                            ok_height,
+                                                                                                            if item.ok > 0 { "4px" } else { "1px" }
+                                                                                                        )></div>
+                                                                                                    </div>
+
+                                                                                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                        <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                            {item.err}
+                                                                                                        </div>
+                                                                                                        <div style=format!(
+                                                                                                            "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                            err_height,
+                                                                                                            if item.err > 0 { "4px" } else { "1px" }
+                                                                                                        )></div>
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                <div style="text-align: center;">
+                                                                                                    <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                        {item.env_name.clone()}
+                                                                                                    </div>
+                                                                                                    <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
+                                                                                                        {format!("{}/{}", item.ok, item.total)}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        }
+                                                                                    })
+                                                                                    .collect_view()
+                                                                            }
+                                                                        </div>
+
+                                                                        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 6px; font-size: 0.58rem; color: #475569;">
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span>
+                                                                                <span>"Passed"</span>
+                                                                            </div>
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span>
+                                                                                <span>"Failed"</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style="margin-top: auto; padding-top: 8px;">
+                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 8px; border: 1px solid #e2e8f0;">
+                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                                                                    <span style="font-size: 0.62rem; font-weight: 800; color: #334155;">
+                                                                                        "Customer Summary"
                                                                                     </span>
 
                                                                                     <span style=format!(
-                                                                                        "font-size: 0.76rem; font-weight: 900; color: {};",
+                                                                                        "font-size: 0.68rem; font-weight: 900; color: {};",
                                                                                         if customer_healthy { "#10b981" } else { "#ef4444" }
                                                                                     )>
                                                                                         {format!("{:.1}%", customer_pct)}
                                                                                     </span>
                                                                                 </div>
 
-                                                                                <div style="background: #e2e8f0; height: 7px; border-radius: 999px; overflow: hidden;">
+                                                                                <div style="background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
                                                                                     <div style=format!(
                                                                                         "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
                                                                                         customer_pct,
@@ -828,7 +827,7 @@ fn App() -> impl IntoView {
                                                                                     )></div>
                                                                                 </div>
 
-                                                                                <div style="display: flex; justify-content: space-between; margin-top: 7px; font-size: 0.66rem; color: #64748b;">
+                                                                                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.58rem; color: #64748b;">
                                                                                     <span>{format!("OK {}", group.ok)}</span>
                                                                                     <span>{format!("ERR {}", group.err)}</span>
                                                                                     <span>{format!("TOTAL {}", group.total)}</span>

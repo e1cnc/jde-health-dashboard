@@ -525,12 +525,8 @@ fn App() -> impl IntoView {
                             }
                         }
                     >
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;">
-                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem;">
-                                    "JDE Environment Health Dashboard"
-                                </h2>
-
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 14px;">
+                            <div style="justify-self: start;">
                                 <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content;">
                                     <button
                                         on:click=move |_| set_filter.set(Filter::All)
@@ -567,30 +563,38 @@ fn App() -> impl IntoView {
                                 </div>
                             </div>
 
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                <div style="min-width: 220px;">
-                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
-                                        <span>"Auto refresh"</span>
-                                        <span>{move || format!("{}s", seconds_left.get())}</span>
+                            <div style="justify-self: center;">
+                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem; text-align: center;">
+                                    "JDE Environment Health Dashboard"
+                                </h2>
+                            </div>
+
+                            <div style="justify-self: end;">
+                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+                                    <div style="min-width: 220px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
+                                            <span>"Auto refresh"</span>
+                                            <span>{move || format!("{}s", seconds_left.get())}</span>
+                                        </div>
+
+                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
+                                            <div style=move || format!(
+                                                "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
+                                                refresh_pct()
+                                            )></div>
+                                        </div>
                                     </div>
 
-                                    <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
-                                        <div style=move || format!(
-                                            "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
-                                            refresh_pct()
-                                        )></div>
-                                    </div>
+                                    <button
+                                        on:click=move |_| {
+                                            set_seconds_left.set(REFRESH_SECONDS);
+                                            health_resource.refetch();
+                                        }
+                                        style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                    >
+                                        "Refresh now"
+                                    </button>
                                 </div>
-
-                                <button
-                                    on:click=move |_| {
-                                        set_seconds_left.set(REFRESH_SECONDS);
-                                        health_resource.refetch();
-                                    }
-                                    style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
-                                >
-                                    "Refresh now"
-                                </button>
                             </div>
                         </div>
 
@@ -652,28 +656,8 @@ fn App() -> impl IntoView {
                                                         <DoughnutChart data=chart_data />
                                                     </div>
 
-                                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                                                    <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
                                                         <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
-                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
-                                                        </div>
-
-                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
-                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
-                                                        </div>
-
-                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
-                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
-                                                        </div>
-
-                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                            <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
-                                                            <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
-                                                        </div>
-
-                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); grid-column: span 2;">
                                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                                                 <span style="font-weight: 800; color: #1e293b; font-size: 0.82rem;">"OVERALL HEALTH"</span>
                                                                 <span style=format!(
@@ -694,6 +678,28 @@ fn App() -> impl IntoView {
 
                                                             <div style="margin-top: 8px; font-size: 0.72rem; color: #64748b;">
                                                                 {format!("{} healthy out of {} instances", total_ok, total_inst)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px;">
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
                                                             </div>
                                                         </div>
                                                     </div>

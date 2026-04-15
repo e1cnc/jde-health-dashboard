@@ -465,22 +465,13 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(18.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
         let legend_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("right"));
-        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("align"), &JsValue::from_str("center"));
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("labels"), &legend_labels);
-
-        let layout_obj = js_sys::Object::new();
-        let padding_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("left"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("right"), &JsValue::from_f64(8.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("top"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("bottom"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&layout_obj, &JsValue::from_str("padding"), &padding_obj);
 
         let plugins_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&plugins_obj, &JsValue::from_str("legend"), &legend_obj);
@@ -488,9 +479,8 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("58%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("layout"), &layout_obj);
 
         let config = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("doughnut"));
@@ -513,8 +503,8 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 180px; width: 100%; max-width: 360px; margin: 0; position: relative;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%; display: block;"></canvas>
+        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
+            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
 }
@@ -663,7 +653,7 @@ fn App() -> impl IntoView {
         |selected| async move {
             match selected {
                 Some(env) => {
-                    let points = fetch_history_data(&env.customer, &env.env_name).await?;
+                let points = fetch_history_data(&env.customer, &env.env_name).await?;
                     Ok::<(EnvStatus, Vec<HistoricalPoint>), String>((env, points))
                 }
                 None => Err("No historical environment selected.".to_string()),
@@ -1145,7 +1135,7 @@ fn App() -> impl IntoView {
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(420px, 360px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
                                                     <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
@@ -1229,6 +1219,7 @@ fn App() -> impl IntoView {
                                                                                 <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
                                                                                     "CUSTOMER"
                                                                                 </div>
+
                                                                                 <div style="font-size: 0.88rem; font-weight: 900; color: #0f172a; line-height: 1.1;">
                                                                                     {group.customer.clone()}
                                                                                 </div>
@@ -1242,7 +1233,7 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
                                                                             {
                                                                                 group.envs
                                                                                     .into_iter()
@@ -1250,21 +1241,21 @@ fn App() -> impl IntoView {
                                                                                         let item_for_click = item.clone();
                                                                                         let item_for_history = item.clone();
 
-                                                                                        let ok_width = if max_bar_value > 0 {
-                                                                                            ((item.ok as f32 / max_bar_value as f32) * 100.0).max(if item.ok > 0 { 4.0 } else { 1.0 })
+                                                                                        let ok_height = if max_bar_value > 0 {
+                                                                                            ((item.ok as f32 / max_bar_value as f32) * 60.0).max(4.0)
                                                                                         } else {
-                                                                                            1.0
+                                                                                            4.0
                                                                                         };
 
-                                                                                        let err_width = if max_bar_value > 0 {
-                                                                                            ((item.err as f32 / max_bar_value as f32) * 100.0).max(if item.err > 0 { 4.0 } else { 1.0 })
+                                                                                        let err_height = if max_bar_value > 0 {
+                                                                                            ((item.err as f32 / max_bar_value as f32) * 60.0).max(if item.err > 0 { 4.0 } else { 1.0 })
                                                                                         } else {
                                                                                             1.0
                                                                                         };
 
                                                                                         view! {
                                                                                             <div
-                                                                                                style="display: flex; flex-direction: column; gap: 4px;"
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;"
                                                                                                 title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
                                                                                             >
                                                                                                 <div
@@ -1281,40 +1272,38 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_env.set(Some(item_for_click.clone()));
                                                                                                         set_page_view.set(PageView::Detail);
                                                                                                     }
-                                                                                                    style="cursor: pointer;"
+                                                                                                    style="width: 100%; display: flex; flex-direction: column; align-items: center; cursor: pointer;"
                                                                                                 >
-                                                                                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                                                                                        <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
-                                                                                                            {item.env_name.clone()}
-                                                                                                        </div>
-                                                                                                        <div style="font-size: 0.52rem; color: #64748b;">
-                                                                                                            {format!("{}/{}", item.ok, item.total)}
-                                                                                                        </div>
-                                                                                                    </div>
-
-                                                                                                    <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
-                                                                                                        <div style="display: flex; align-items: center; gap: 4px; min-width: 34px;">
+                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px; width: 100%;">
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
                                                                                                             <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
                                                                                                                 {item.ok}
                                                                                                             </div>
-                                                                                                            <div style="height: 12px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
-                                                                                                                <div style=format!(
-                                                                                                                    "height: 100%; width: {:.2}%; background: #10b981; border-radius: 999px;",
-                                                                                                                    ok_width
-                                                                                                                )></div>
-                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                ok_height,
+                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
                                                                                                         </div>
 
-                                                                                                        <div style="display: flex; align-items: center; gap: 4px; min-width: 34px;">
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
                                                                                                             <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
                                                                                                                 {item.err}
                                                                                                             </div>
-                                                                                                            <div style="height: 12px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
-                                                                                                                <div style=format!(
-                                                                                                                    "height: 100%; width: {:.2}%; background: #ef4444; border-radius: 999px;",
-                                                                                                                    err_width
-                                                                                                                )></div>
-                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                err_height,
+                                                                                                                if item.err > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
+                                                                                                        </div>
+                                                                                                    </div>
+
+                                                                                                    <div style="text-align: center;">
+                                                                                                        <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                            {item.env_name.clone()}
+                                                                                                        </div>
+                                                                                                        <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
+                                                                                                            {format!("{}/{}", item.ok, item.total)}
                                                                                                         </div>
                                                                                                     </div>
                                                                                                 </div>
@@ -1333,7 +1322,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="align-self: flex-start; margin-top: 2px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
+                                                                                                    style="margin-top: 6px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>

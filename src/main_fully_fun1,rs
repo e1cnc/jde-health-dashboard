@@ -6,7 +6,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use urlencoding::encode;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{console, Event};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const REFRESH_SECONDS: i32 = 60;
 const TICK_MS: u32 = 1000;
@@ -61,14 +61,6 @@ pub struct HistoricalFileData {
     pub failed: usize,
     pub total: usize,
     pub items: Vec<HealthInstance>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HistoryCategorized {
-    pub env: EnvStatus,
-    pub points: Vec<HistoricalFileData>,
-    pub existing_errors: Vec<HealthInstance>,
-    pub new_errors: Vec<HealthInstance>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -158,66 +150,6 @@ fn calc_pct(ok: usize, total: usize) -> f32 {
     } else {
         0.0
     }
-}
-
-fn is_failed_instance(inst: &HealthInstance) -> bool {
-    let instance_status = inst
-        .instance_status
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_uppercase();
-
-    let health_status = inst
-        .health_status
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_lowercase();
-
-    !(instance_status == "RUNNING" && health_status == "passed")
-}
-
-fn instance_key(inst: &HealthInstance) -> String {
-    format!(
-        "{}||{}||{}",
-        inst.instance_name.as_deref().unwrap_or("").trim(),
-        inst.instance_status.as_deref().unwrap_or("").trim(),
-        inst.details.as_deref().unwrap_or("").trim()
-    )
-}
-
-fn categorize_latest_errors(points: &[HistoricalFileData]) -> (Vec<HealthInstance>, Vec<HealthInstance>) {
-    if points.is_empty() {
-        return (vec![], vec![]);
-    }
-
-    let latest = points.last().unwrap();
-
-    let mut previous_failed_keys: BTreeSet<String> = BTreeSet::new();
-
-    for point in points.iter().take(points.len().saturating_sub(1)) {
-        for item in &point.items {
-            if is_failed_instance(item) {
-                previous_failed_keys.insert(instance_key(item));
-            }
-        }
-    }
-
-    let mut existing_errors = Vec::new();
-    let mut new_errors = Vec::new();
-
-    for item in &latest.items {
-        if is_failed_instance(item) {
-            if previous_failed_keys.contains(&instance_key(item)) {
-                existing_errors.push(item.clone());
-            } else {
-                new_errors.push(item.clone());
-            }
-        }
-    }
-
-    (existing_errors, new_errors)
 }
 
 fn group_by_customer(items: Vec<EnvStatus>, filter: Filter) -> Vec<CustomerGroup> {
@@ -351,10 +283,24 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
                 let mut err = 0usize;
 
                 for inst in &instances {
-                    if is_failed_instance(inst) {
-                        err += 1;
-                    } else {
+                    let instance_status = inst
+                        .instance_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_uppercase();
+
+                    let health_status = inst
+                        .health_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_lowercase();
+
+                    if instance_status == "RUNNING" && health_status == "passed" {
                         ok += 1;
+                    } else {
+                        err += 1;
                     }
                 }
 
@@ -431,10 +377,24 @@ async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<His
                 let mut failed = 0usize;
 
                 for inst in &instances {
-                    if is_failed_instance(inst) {
-                        failed += 1;
-                    } else {
+                    let instance_status = inst
+                        .instance_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_uppercase();
+
+                    let health_status = inst
+                        .health_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_lowercase();
+
+                    if instance_status == "RUNNING" && health_status == "passed" {
                         passed += 1;
+                    } else {
+                        failed += 1;
                     }
                 }
 
@@ -568,93 +528,6 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 }
 
 #[component]
-fn ErrorGroupTable(title: &'static str, items: Vec<HealthInstance>, accent: &'static str) -> impl IntoView {
-    view! {
-        <div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-            <div style="padding: 14px 16px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <div style=format!("color: {}; font-size: 0.92rem; font-weight: 900;", accent)>
-                    {title}
-                </div>
-                <div style="color: #334155; font-size: 0.76rem; font-weight: 800;">
-                    {format!("{} checks", items.len())}
-                </div>
-            </div>
-
-            <Show
-                when=move || !items.is_empty()
-                fallback=|| view! {
-                    <div style="padding: 14px 16px; color: #64748b; font-size: 0.82rem;">
-                        "No checks in this category."
-                    </div>
-                }
-            >
-                <div style="padding: 12px 16px 16px 16px; display: grid; gap: 10px;">
-                    {
-                        items
-                            .iter()
-                            .map(|item| {
-                                let instance_label = item
-                                    .instance_name
-                                    .clone()
-                                    .unwrap_or_else(|| "-".to_string());
-
-                                view! {
-                                    <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                        <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
-                                            <span>{instance_label.clone()}</span>
-                                            <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
-                                        </summary>
-
-                                        <div style="padding: 0 12px 12px 12px;">
-                                            <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                                                <tbody>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; width: 180px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Instance Name"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Instance Status"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Health Status"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Details"
-                                                        </td>
-                                                        <td style="padding: 10px; color: #334155;">
-                                                            {item.details.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </details>
-                                }
-                            })
-                            .collect_view()
-                    }
-                </div>
-            </Show>
-        </div>
-    }
-}
-
-#[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
     let (seconds_left, set_seconds_left) = create_signal(REFRESH_SECONDS);
@@ -690,14 +563,7 @@ fn App() -> impl IntoView {
             match selected {
                 Some(env) => {
                     let points = fetch_history_data(&env.customer, &env.env_name).await?;
-                    let (existing_errors, new_errors) = categorize_latest_errors(&points);
-
-                    Ok::<HistoryCategorized, String>(HistoryCategorized {
-                        env,
-                        points,
-                        existing_errors,
-                        new_errors,
-                    })
+                    Ok::<(EnvStatus, Vec<HistoricalFileData>), String>((env, points))
                 }
                 None => Err("No historical environment selected.".to_string()),
             }
@@ -1069,10 +935,10 @@ fn App() -> impl IntoView {
                                                     </>
                                                 }.into_view(),
 
-                                                Ok(history_data) => {
-                                                    let total_passed: usize = history_data.points.iter().map(|p| p.passed).sum();
-                                                    let total_failed: usize = history_data.points.iter().map(|p| p.failed).sum();
-                                                    let sample_count = history_data.points.len();
+                                                Ok((env, points)) => {
+                                                    let total_passed: usize = points.iter().map(|p| p.passed).sum();
+                                                    let total_failed: usize = points.iter().map(|p| p.failed).sum();
+                                                    let sample_count = points.len();
 
                                                     view! {
                                                         <>
@@ -1106,11 +972,11 @@ fn App() -> impl IntoView {
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                                 <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
-                                                                    {history_data.env.customer.clone()}
+                                                                    {env.customer.clone()}
                                                                 </div>
 
                                                                 <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
-                                                                    {format!("{} Historical Health", history_data.env.env_name)}
+                                                                    {format!("{} Historical Health", env.env_name)}
                                                                 </div>
 
                                                                 <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
@@ -1119,50 +985,11 @@ fn App() -> impl IntoView {
                                                                     <div>{format!("Failed: {}", total_failed)}</div>
                                                                     <div>"Showing latest 15 files"</div>
                                                                 </div>
-
-                                                                <div style="display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 10px;">
-                                                                    <div style="background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 12px;">
-                                                                        <div style="color: #c2410c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
-                                                                            "Existing Errors"
-                                                                        </div>
-                                                                        <div style="color: #9a3412; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
-                                                                            {history_data.existing_errors.len()}
-                                                                        </div>
-                                                                        <div style="color: #7c2d12; font-size: 0.76rem; margin-top: 4px;">
-                                                                            "Failed before and still failing in latest JSON"
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 12px;">
-                                                                        <div style="color: #b91c1c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
-                                                                            "New Errors"
-                                                                        </div>
-                                                                        <div style="color: #991b1b; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
-                                                                            {history_data.new_errors.len()}
-                                                                        </div>
-                                                                        <div style="color: #7f1d1d; font-size: 0.76rem; margin-top: 4px;">
-                                                                            "Failing in latest JSON but not seen failed in prior history"
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 12px; margin-bottom: 14px;">
-                                                                <ErrorGroupTable
-                                                                    title="Existing Errors"
-                                                                    items=history_data.existing_errors.clone()
-                                                                    accent="#c2410c"
-                                                                />
-                                                                <ErrorGroupTable
-                                                                    title="New Errors"
-                                                                    items=history_data.new_errors.clone()
-                                                                    accent="#b91c1c"
-                                                                />
                                                             </div>
 
                                                             <div style="display: grid; gap: 10px;">
                                                                 {
-                                                                    history_data.points
+                                                                    points
                                                                         .iter()
                                                                         .map(|point| {
                                                                             let label = point.label.clone();

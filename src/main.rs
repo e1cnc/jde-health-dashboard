@@ -6,7 +6,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use urlencoding::encode;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{console, Event};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 const REFRESH_SECONDS: i32 = 60;
 const TICK_MS: u32 = 1000;
@@ -53,24 +53,6 @@ pub struct HistoricalPoint {
     pub filename: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HistoricalFileData {
-    pub label: String,
-    pub filename: String,
-    pub passed: usize,
-    pub failed: usize,
-    pub total: usize,
-    pub items: Vec<HealthInstance>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HistoryCategorized {
-    pub env: EnvStatus,
-    pub points: Vec<HistoricalFileData>,
-    pub existing_errors: Vec<HealthInstance>,
-    pub new_errors: Vec<HealthInstance>,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct OCIObject {
     pub name: String,
@@ -96,13 +78,6 @@ enum PageView {
     Dashboard,
     Detail,
     History,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum DetailSortField {
-    InstanceName,
-    InstanceStatus,
-    HealthStatus,
 }
 
 const BASE_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o";
@@ -158,66 +133,6 @@ fn calc_pct(ok: usize, total: usize) -> f32 {
     } else {
         0.0
     }
-}
-
-fn is_failed_instance(inst: &HealthInstance) -> bool {
-    let instance_status = inst
-        .instance_status
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_uppercase();
-
-    let health_status = inst
-        .health_status
-        .as_deref()
-        .unwrap_or("")
-        .trim()
-        .to_lowercase();
-
-    !(instance_status == "RUNNING" && health_status == "passed")
-}
-
-fn instance_key(inst: &HealthInstance) -> String {
-    format!(
-        "{}||{}||{}",
-        inst.instance_name.as_deref().unwrap_or("").trim(),
-        inst.instance_status.as_deref().unwrap_or("").trim(),
-        inst.details.as_deref().unwrap_or("").trim()
-    )
-}
-
-fn categorize_latest_errors(points: &[HistoricalFileData]) -> (Vec<HealthInstance>, Vec<HealthInstance>) {
-    if points.is_empty() {
-        return (vec![], vec![]);
-    }
-
-    let latest = points.last().unwrap();
-
-    let mut previous_failed_keys: BTreeSet<String> = BTreeSet::new();
-
-    for point in points.iter().take(points.len().saturating_sub(1)) {
-        for item in &point.items {
-            if is_failed_instance(item) {
-                previous_failed_keys.insert(instance_key(item));
-            }
-        }
-    }
-
-    let mut existing_errors = Vec::new();
-    let mut new_errors = Vec::new();
-
-    for item in &latest.items {
-        if is_failed_instance(item) {
-            if previous_failed_keys.contains(&instance_key(item)) {
-                existing_errors.push(item.clone());
-            } else {
-                new_errors.push(item.clone());
-            }
-        }
-    }
-
-    (existing_errors, new_errors)
 }
 
 fn group_by_customer(items: Vec<EnvStatus>, filter: Filter) -> Vec<CustomerGroup> {
@@ -351,10 +266,24 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
                 let mut err = 0usize;
 
                 for inst in &instances {
-                    if is_failed_instance(inst) {
-                        err += 1;
-                    } else {
+                    let instance_status = inst
+                        .instance_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_uppercase();
+
+                    let health_status = inst
+                        .health_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_lowercase();
+
+                    if instance_status == "RUNNING" && health_status == "passed" {
                         ok += 1;
+                    } else {
+                        err += 1;
                     }
                 }
 
@@ -390,7 +319,7 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
     Ok(results)
 }
 
-async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<HistoricalFileData>, String> {
+async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<HistoricalPoint>, String> {
     let mut matching_files: Vec<String> = fetch_object_names()
         .await?
         .into_iter()
@@ -431,20 +360,33 @@ async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<His
                 let mut failed = 0usize;
 
                 for inst in &instances {
-                    if is_failed_instance(inst) {
-                        failed += 1;
-                    } else {
+                    let instance_status = inst
+                        .instance_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_uppercase();
+
+                    let health_status = inst
+                        .health_status
+                        .as_deref()
+                        .unwrap_or("")
+                        .trim()
+                        .to_lowercase();
+
+                    if instance_status == "RUNNING" && health_status == "passed" {
                         passed += 1;
+                    } else {
+                        failed += 1;
                     }
                 }
 
-                points.push(HistoricalFileData {
+                points.push(HistoricalPoint {
                     label: format_history_label(&month, &year, &hhmm),
-                    filename,
                     passed,
                     failed,
                     total: passed + failed,
-                    items: instances,
+                    filename,
                 });
             }
             Err(e) => log(&e),
@@ -523,12 +465,12 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(12.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
         let legend_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("right"));
+        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("bottom"));
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("labels"), &legend_labels);
 
         let plugins_obj = js_sys::Object::new();
@@ -561,95 +503,119 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 260px; max-width: 420px; width: 100%; margin: 0 auto; position: relative;">
+        <div style="height: 220px; width: 100%; min-width: 0; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
 }
 
 #[component]
-fn ErrorGroupTable(title: &'static str, items: Vec<HealthInstance>, accent: &'static str) -> impl IntoView {
-    view! {
-        <div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-            <div style="padding: 14px 16px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <div style=format!("color: {}; font-size: 0.92rem; font-weight: 900;", accent)>
-                    {title}
-                </div>
-                <div style="color: #334155; font-size: 0.76rem; font-weight: 800;">
-                    {format!("{} checks", items.len())}
-                </div>
-            </div>
+fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
+    let canvas_ref = create_node_ref::<html::Canvas>();
 
-            <Show
-                when=move || !items.is_empty()
-                fallback=|| view! {
-                    <div style="padding: 14px 16px; color: #64748b; font-size: 0.82rem;">
-                        "No checks in this category."
-                    </div>
-                }
-            >
-                <div style="padding: 12px 16px 16px 16px; display: grid; gap: 10px;">
-                    {
-                        items
-                            .iter()
-                            .map(|item| {
-                                let instance_label = item
-                                    .instance_name
-                                    .clone()
-                                    .unwrap_or_else(|| "-".to_string());
+    create_effect(move |_| {
+        let Some(canvas) = canvas_ref.get() else {
+            return;
+        };
 
-                                view! {
-                                    <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                        <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
-                                            <span>{instance_label.clone()}</span>
-                                            <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
-                                        </summary>
+        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
+        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
+        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
 
-                                        <div style="padding: 0 12px 12px 12px;">
-                                            <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                                                <tbody>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; width: 180px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Instance Name"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Instance Status"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Health Status"
-                                                        </td>
-                                                        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                            {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="padding: 10px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                            "Details"
-                                                        </td>
-                                                        <td style="padding: 10px; color: #334155;">
-                                                            {item.details.clone().unwrap_or_else(|| "-".to_string())}
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </details>
-                                }
-                            })
-                            .collect_view()
+        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
+        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
+        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
+
+        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
+            .ok()
+            .filter(|v| !v.is_undefined() && !v.is_null());
+
+        let Some(chart_ctor) = chart_ctor else {
+            log("Chart.js is not loaded on window.Chart");
+            return;
+        };
+
+        let window = web_sys::window().unwrap();
+        let chart_key = JsValue::from_str("__jde_history_chart");
+
+        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
+            if !existing.is_undefined() && !existing.is_null() {
+                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
+                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
+                        let _ = destroy.call0(&existing);
                     }
-                </div>
-            </Show>
+                }
+            }
+        }
+
+        let dataset_passed = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
+
+        let dataset_failed = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
+
+        let datasets = js_sys::Array::new();
+        datasets.push(&dataset_passed);
+        datasets.push(&dataset_failed);
+
+        let data_obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
+        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
+
+        let x_ticks = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
+
+        let y_ticks = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
+
+        let x_scale = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
+
+        let y_scale = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
+        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
+
+        let scales = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
+        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
+
+        let legend = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
+
+        let plugins = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
+
+        let options = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
+
+        let config = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
+
+        let args = js_sys::Array::new();
+        args.push(canvas.as_ref());
+        args.push(&config);
+
+        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
+            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
+                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
+            }
+        }
+    });
+
+    view! {
+        <div style="height: 420px; width: 100%; position: relative;">
+            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
 }
@@ -661,8 +627,6 @@ fn App() -> impl IntoView {
     let (selected_env, set_selected_env) = create_signal::<Option<EnvStatus>>(None);
     let (selected_history_env, set_selected_history_env) = create_signal::<Option<EnvStatus>>(None);
     let (page_view, set_page_view) = create_signal(PageView::Dashboard);
-    let (detail_sort_field, set_detail_sort_field) = create_signal(DetailSortField::InstanceName);
-    let (detail_sort_asc, set_detail_sort_asc) = create_signal(true);
 
     let health_resource = create_resource(
         || (),
@@ -690,14 +654,7 @@ fn App() -> impl IntoView {
             match selected {
                 Some(env) => {
                     let points = fetch_history_data(&env.customer, &env.env_name).await?;
-                    let (existing_errors, new_errors) = categorize_latest_errors(&points);
-
-                    Ok::<HistoryCategorized, String>(HistoryCategorized {
-                        env,
-                        points,
-                        existing_errors,
-                        new_errors,
-                    })
+                    Ok::<(EnvStatus, Vec<HistoricalPoint>), String>((env, points))
                 }
                 None => Err("No historical environment selected.".to_string()),
             }
@@ -823,27 +780,6 @@ fn App() -> impl IntoView {
                                                     let pct = calc_pct(env.ok, env.total);
                                                     let env_for_history = env.clone();
 
-                                                    let mut sorted_json = raw_json.clone();
-                                                    sorted_json.sort_by(|a, b| {
-                                                        let a_val = match detail_sort_field.get() {
-                                                            DetailSortField::InstanceName => a.instance_name.as_deref().unwrap_or(""),
-                                                            DetailSortField::InstanceStatus => a.instance_status.as_deref().unwrap_or(""),
-                                                            DetailSortField::HealthStatus => a.health_status.as_deref().unwrap_or(""),
-                                                        };
-
-                                                        let b_val = match detail_sort_field.get() {
-                                                            DetailSortField::InstanceName => b.instance_name.as_deref().unwrap_or(""),
-                                                            DetailSortField::InstanceStatus => b.instance_status.as_deref().unwrap_or(""),
-                                                            DetailSortField::HealthStatus => b.health_status.as_deref().unwrap_or(""),
-                                                        };
-
-                                                        if detail_sort_asc.get() {
-                                                            a_val.cmp(b_val)
-                                                        } else {
-                                                            b_val.cmp(a_val)
-                                                        }
-                                                    });
-
                                                     view! {
                                                         <>
                                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
@@ -922,46 +858,13 @@ fn App() -> impl IntoView {
                                                             </div>
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
-                                                                    <div style="font-weight: 800; color: #0f172a;">
-                                                                        "Health Details"
-                                                                    </div>
-
-                                                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                                                                        <select
-                                                                            on:change=move |ev| {
-                                                                                let value = event_target_value(&ev);
-                                                                                match value.as_str() {
-                                                                                    "instance_status" => set_detail_sort_field.set(DetailSortField::InstanceStatus),
-                                                                                    "health_status" => set_detail_sort_field.set(DetailSortField::HealthStatus),
-                                                                                    _ => set_detail_sort_field.set(DetailSortField::InstanceName),
-                                                                                }
-                                                                            }
-                                                                            style="border: 1px solid #cbd5e1; background: white; color: #334155; padding: 8px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 700;"
-                                                                        >
-                                                                            <option value="instance_name" selected=move || detail_sort_field.get() == DetailSortField::InstanceName>
-                                                                                "Instance Name"
-                                                                            </option>
-                                                                            <option value="instance_status" selected=move || detail_sort_field.get() == DetailSortField::InstanceStatus>
-                                                                                "Instance Status"
-                                                                            </option>
-                                                                            <option value="health_status" selected=move || detail_sort_field.get() == DetailSortField::HealthStatus>
-                                                                                "Health Status"
-                                                                            </option>
-                                                                        </select>
-
-                                                                        <button
-                                                                            on:click=move |_| set_detail_sort_asc.update(|v| *v = !*v)
-                                                                            style="border: none; background: #1e293b; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.78rem;"
-                                                                        >
-                                                                            {move || if detail_sort_asc.get() { "Ascending" } else { "Descending" }}
-                                                                        </button>
-                                                                    </div>
+                                                                <div style="font-weight: 800; margin-bottom: 10px; color: #0f172a;">
+                                                                    "Health Cheails"
                                                                 </div>
 
                                                                 <div style="display: grid; gap: 10px;">
                                                                     {
-                                                                        sorted_json
+                                                                        raw_json
                                                                             .iter()
                                                                             .map(|item| {
                                                                                 let instance_label = item
@@ -971,7 +874,7 @@ fn App() -> impl IntoView {
 
                                                                                 view! {
                                                                                     <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                                                                        <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
+                                                                                        <summary style="cursor: pointer; list-style: none; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
                                                                                             <span>{instance_label.clone()}</span>
                                                                                             <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
                                                                                         </summary>
@@ -1069,10 +972,10 @@ fn App() -> impl IntoView {
                                                     </>
                                                 }.into_view(),
 
-                                                Ok(history_data) => {
-                                                    let total_passed: usize = history_data.points.iter().map(|p| p.passed).sum();
-                                                    let total_failed: usize = history_data.points.iter().map(|p| p.failed).sum();
-                                                    let sample_count = history_data.points.len();
+                                                Ok((env, points)) => {
+                                                    let total_passed: usize = points.iter().map(|p| p.passed).sum();
+                                                    let total_failed: usize = points.iter().map(|p| p.failed).sum();
+                                                    let sample_count = points.len();
 
                                                     view! {
                                                         <>
@@ -1106,11 +1009,11 @@ fn App() -> impl IntoView {
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                                 <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
-                                                                    {history_data.env.customer.clone()}
+                                                                    {env.customer.clone()}
                                                                 </div>
 
                                                                 <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
-                                                                    {format!("{} Historical Health", history_data.env.env_name)}
+                                                                    {format!("{} Historical Health", env.env_name)}
                                                                 </div>
 
                                                                 <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
@@ -1120,143 +1023,20 @@ fn App() -> impl IntoView {
                                                                     <div>"Showing latest 15 files"</div>
                                                                 </div>
 
-                                                                <div style="display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 10px;">
-                                                                    <div style="background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 12px;">
-                                                                        <div style="color: #c2410c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
-                                                                            "Existing Errors"
-                                                                        </div>
-                                                                        <div style="color: #9a3412; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
-                                                                            {history_data.existing_errors.len()}
-                                                                        </div>
-                                                                        <div style="color: #7c2d12; font-size: 0.76rem; margin-top: 4px;">
-                                                                            "Failed before and still failing in latest JSON"
-                                                                        </div>
+                                                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
+                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span>
+                                                                        <span>"Passed"</span>
                                                                     </div>
-
-                                                                    <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 12px;">
-                                                                        <div style="color: #b91c1c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
-                                                                            "New Errors"
-                                                                        </div>
-                                                                        <div style="color: #991b1b; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
-                                                                            {history_data.new_errors.len()}
-                                                                        </div>
-                                                                        <div style="color: #7f1d1d; font-size: 0.76rem; margin-top: 4px;">
-                                                                            "Failing in latest JSON but not seen failed in prior history"
-                                                                        </div>
+                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
+                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px;"></span>
+                                                                        <span>"Failed"</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
 
-                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 12px; margin-bottom: 14px;">
-                                                                <ErrorGroupTable
-                                                                    title="Existing Errors"
-                                                                    items=history_data.existing_errors.clone()
-                                                                    accent="#c2410c"
-                                                                />
-                                                                <ErrorGroupTable
-                                                                    title="New Errors"
-                                                                    items=history_data.new_errors.clone()
-                                                                    accent="#b91c1c"
-                                                                />
-                                                            </div>
-
-                                                            <div style="display: grid; gap: 10px;">
-                                                                {
-                                                                    history_data.points
-                                                                        .iter()
-                                                                        .map(|point| {
-                                                                            let label = point.label.clone();
-                                                                            let filename = point.filename.clone();
-                                                                            let passed = point.passed;
-                                                                            let failed = point.failed;
-                                                                            let total = point.total;
-                                                                            let items = point.items.clone();
-
-                                                                            view! {
-                                                                                <details style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                                                    <summary style="cursor: pointer; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; background: #f8fafc;">
-                                                                                        <div>
-                                                                                            <div style="color: #0f172a; font-size: 0.90rem; font-weight: 900;">
-                                                                                                {label}
-                                                                                            </div>
-                                                                                            <div style="color: #64748b; font-size: 0.72rem; font-weight: 700; margin-top: 4px;">
-                                                                                                {filename}
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 0.74rem; font-weight: 800;">
-                                                                                            <span style="color: #10b981;">{format!("Passed: {}", passed)}</span>
-                                                                                            <span style="color: #ef4444;">{format!("Failed: {}", failed)}</span>
-                                                                                            <span style="color: #334155;">{format!("Total: {}", total)}</span>
-                                                                                        </div>
-                                                                                    </summary>
-
-                                                                                    <div style="padding: 12px 16px 16px 16px; display: grid; gap: 10px;">
-                                                                                        {
-                                                                                            items
-                                                                                                .iter()
-                                                                                                .map(|item| {
-                                                                                                    let instance_label = item
-                                                                                                        .instance_name
-                                                                                                        .clone()
-                                                                                                        .unwrap_or_else(|| "-".to_string());
-
-                                                                                                    view! {
-                                                                                                        <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                                                                                            <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
-                                                                                                                <span>{instance_label.clone()}</span>
-                                                                                                                <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
-                                                                                                            </summary>
-
-                                                                                                            <div style="padding: 0 12px 12px 12px;">
-                                                                                                                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                                                                                                                    <tbody>
-                                                                                                                        <tr>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; width: 180px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                                                                                                "Instance Name"
-                                                                                                                            </td>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                                            </td>
-                                                                                                                        </tr>
-                                                                                                                        <tr>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                                                                                                "Instance Status"
-                                                                                                                            </td>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                                            </td>
-                                                                                                                        </tr>
-                                                                                                                        <tr>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                                                                                                "Health Status"
-                                                                                                                            </td>
-                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
-                                                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                                            </td>
-                                                                                                                        </tr>
-                                                                                                                        <tr>
-                                                                                                                            <td style="padding: 10px; font-weight: 800; color: #334155; background: #f8fafc;">
-                                                                                                                                "Details"
-                                                                                                                            </td>
-                                                                                                                            <td style="padding: 10px; color: #334155;">
-                                                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                                            </td>
-                                                                                                                        </tr>
-                                                                                                                    </tbody>
-                                                                                                                </table>
-                                                                                                            </div>
-                                                                                                        </details>
-                                                                                                    }
-                                                                                                })
-                                                                                                .collect_view()
-                                                                                        }
-                                                                                    </div>
-                                                                                </details>
-                                                                            }
-                                                                        })
-                                                                        .collect_view()
-                                                                }
+                                                            <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <HistoryBarChart data=points.clone() />
                                                             </div>
                                                         </>
                                                     }.into_view()
@@ -1364,7 +1144,7 @@ fn App() -> impl IntoView {
 
                                         let total_ok: usize = filtered_for_summary.iter().map(|i| i.ok).sum();
                                         let total_inst: usize = filtered_for_summary.iter().map(|i| i.total).sum();
-                                        let total_err: usize = filtered_for_summary.iter().map(|i| i.err).sum();
+                                        let _total_err: usize = filtered_for_summary.iter().map(|i| i.err).sum();
 
                                         let total_customers: usize = {
                                             let mut s = BTreeMap::new();
@@ -1396,7 +1176,7 @@ fn App() -> impl IntoView {
                                                             </div>
                                                         </div>
 
-                                                        <DoughnutChart data=chart_data />
+                                                        <DoughnutChart data=chart_data.clone() />
                                                     </div>
 
                                                     <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
@@ -1440,9 +1220,20 @@ fn App() -> impl IntoView {
                                                                 <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
                                                             </div>
 
-                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
-                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-width: 0;">
+                                                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                                                                    <div>
+                                                                        <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customer Distribution"</div>
+                                                                        <div style="font-size: 0.80rem; font-weight: 900; color: #0f172a; margin-top: 4px;">"Instances by customer"</div>
+                                                                    </div>
+                                                                    <div style="font-size: 0.68rem; color: #64748b; font-weight: 700;">
+                                                                        {format!("{} customers", total_customers)}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style="min-width: 0;">
+                                                                    <DoughnutChart data=chart_data.clone() />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1475,23 +1266,6 @@ fn App() -> impl IntoView {
                                                                             )>
                                                                                 {if customer_healthy { "HEALTHY" } else { "ISSUES" }}
                                                                             </div>
-                                                                        </div>
-
-                                                                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px;">
-                                                                            <div style="font-size: 0.74rem; color: #64748b;">
-                                                                                {format!("{} / {} healthy", group.ok, group.total)}
-                                                                            </div>
-                                                                            <div style="font-size: 0.82rem; font-weight: 900; color: #0f172a;">
-                                                                                {format!("{:.1}%", customer_pct)}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
-                                                                            <div style=format!(
-                                                                                "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
-                                                                                customer_pct,
-                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
-                                                                            )></div>
                                                                         </div>
 
                                                                         <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
@@ -1593,7 +1367,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="border: none; background: #0f766e; color: white; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 0.52rem; font-weight: 800;"
+                                                                                                    style="margin-top: 6px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>
@@ -1602,6 +1376,48 @@ fn App() -> impl IntoView {
                                                                                     })
                                                                                     .collect_view()
                                                                             }
+                                                                        </div>
+
+                                                                        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 6px; font-size: 0.58rem; color: #475569;">
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span>
+                                                                                <span>"Passed"</span>
+                                                                            </div>
+                                                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span>
+                                                                                <span>"Failed"</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style="margin-top: auto; padding-top: 8px;">
+                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 8px; border: 1px solid #e2e8f0;">
+                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                                                                    <span style="font-size: 0.62rem; font-weight: 800; color: #334155;">
+                                                                                        "Customer Summary"
+                                                                                    </span>
+
+                                                                                    <span style=format!(
+                                                                                        "font-size: 0.68rem; font-weight: 900; color: {};",
+                                                                                        if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                                    )>
+                                                                                        {format!("{:.1}%", customer_pct)}
+                                                                                    </span>
+                                                                                </div>
+
+                                                                                <div style="background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
+                                                                                    <div style=format!(
+                                                                                        "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
+                                                                                        customer_pct,
+                                                                                        if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                                    )></div>
+                                                                                </div>
+
+                                                                                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.58rem; color: #64748b;">
+                                                                                    <span>{format!("OK {}", group.ok)}</span>
+                                                                                    <span>{format!("ERR {}", group.err)}</span>
+                                                                                    <span>{format!("TOTAL {}", group.total)}</span>
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 }
@@ -1623,5 +1439,5 @@ fn App() -> impl IntoView {
 }
 
 fn main() {
-    mount_to_body(|| view! { <App /> });
+    mount_to_body(|| view! { <App /> })
 }

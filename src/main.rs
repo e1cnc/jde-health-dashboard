@@ -179,12 +179,11 @@ fn is_failed_instance(inst: &HealthInstance) -> bool {
 }
 
 fn instance_key(inst: &HealthInstance) -> String {
-    format!(
-        "{}||{}||{}",
-        inst.instance_name.as_deref().unwrap_or("").trim(),
-        inst.instance_status.as_deref().unwrap_or("").trim(),
-        inst.details.as_deref().unwrap_or("").trim()
-    )
+    inst.instance_name
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase()
 }
 
 fn categorize_latest_errors(points: &[HistoricalFileData]) -> (Vec<HealthInstance>, Vec<HealthInstance>) {
@@ -569,10 +568,6 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 
 #[component]
 fn ErrorGroupTable(title: &'static str, items: Vec<HealthInstance>, accent: &'static str) -> impl IntoView {
-    // FIX: Clone the items here so one copy can be moved into the 'when' closure
-    // while the original stays available for the .iter() map logic below.
-    let items_cloned = items.clone();
-
     view! {
         <div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
             <div style="padding: 14px 16px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -585,7 +580,7 @@ fn ErrorGroupTable(title: &'static str, items: Vec<HealthInstance>, accent: &'st
             </div>
 
             <Show
-                when=move || !items_cloned.is_empty()
+                when=move || !items.is_empty()
                 fallback=|| view! {
                     <div style="padding: 14px 16px; color: #64748b; font-size: 0.82rem;">
                         "No checks in this category."
@@ -658,10 +653,9 @@ fn ErrorGroupTable(title: &'static str, items: Vec<HealthInstance>, accent: &'st
     }
 }
 
-// ... rest of the file remains the same
 #[component]
 fn App() -> impl IntoView {
-    let (filter, _set_filter) = create_signal(Filter::All);
+    let (filter, set_filter) = create_signal(Filter::All);
     let (seconds_left, set_seconds_left) = create_signal(REFRESH_SECONDS);
     let (selected_env, set_selected_env) = create_signal::<Option<EnvStatus>>(None);
     let (selected_history_env, set_selected_history_env) = create_signal::<Option<EnvStatus>>(None);
@@ -767,7 +761,7 @@ fn App() -> impl IntoView {
         });
     }
 
-    let _refresh_pct = move || {
+    let refresh_pct = move || {
         let elapsed = REFRESH_SECONDS - seconds_left.get();
         (elapsed as f32 / REFRESH_SECONDS as f32) * 100.0
     };
@@ -931,6 +925,7 @@ fn App() -> impl IntoView {
                                                                     <div style="font-weight: 800; color: #0f172a;">
                                                                         "Health Details"
                                                                     </div>
+
                                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                                                                         <select
                                                                             on:change=move |ev| {
@@ -1042,11 +1037,583 @@ fn App() -> impl IntoView {
                                     </Transition>
                                 }.into_view()
                             } else {
-                                view! { <p>"Page view not implemented"</p> }.into_view()
+                                view! {
+                                    <Transition fallback=|| view! { <p>"Loading historical data..."</p> }>
+                                        {move || {
+                                            history_resource.get().map(|res| match res {
+                                                Err(e) => view! {
+                                                    <>
+                                                        <button
+                                                            on:click=move |_| {
+                                                                if let Some(window) = web_sys::window() {
+                                                                    if let Ok(history) = window.history() {
+                                                                        let _ = history.back();
+                                                                    } else {
+                                                                        set_selected_history_env.set(None);
+                                                                        set_page_view.set(PageView::Dashboard);
+                                                                    }
+                                                                } else {
+                                                                    set_selected_history_env.set(None);
+                                                                    set_page_view.set(PageView::Dashboard);
+                                                                }
+                                                            }
+                                                            style="margin-bottom: 12px; border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                        >
+                                                            "← Back to dashboard"
+                                                        </button>
+
+                                                        <div style="background: white; border-radius: 12px; padding: 16px; color: #dc2626; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            {e}
+                                                        </div>
+                                                    </>
+                                                }.into_view(),
+
+                                                Ok(history_data) => {
+                                                    let total_passed: usize = history_data.points.iter().map(|p| p.passed).sum();
+                                                    let total_failed: usize = history_data.points.iter().map(|p| p.failed).sum();
+                                                    let sample_count = history_data.points.len();
+
+                                                    view! {
+                                                        <>
+                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                                                                <button
+                                                                    on:click=move |_| {
+                                                                        if let Some(window) = web_sys::window() {
+                                                                            if let Ok(history) = window.history() {
+                                                                                let _ = history.back();
+                                                                            } else {
+                                                                                set_selected_history_env.set(None);
+                                                                                set_page_view.set(PageView::Dashboard);
+                                                                            }
+                                                                        } else {
+                                                                            set_selected_history_env.set(None);
+                                                                            set_page_view.set(PageView::Dashboard);
+                                                                        }
+                                                                    }
+                                                                    style="border: none; background: #1e293b; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                                >
+                                                                    "← Back to dashboard"
+                                                                </button>
+
+                                                                <button
+                                                                    on:click=move |_| history_resource.refetch()
+                                                                    style="border: none; background: #2563eb; color: white; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                                                >
+                                                                    "Refresh history"
+                                                                </button>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
+                                                                    {history_data.env.customer.clone()}
+                                                                </div>
+
+                                                                <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
+                                                                    {format!("{} Historical Health", history_data.env.env_name)}
+                                                                </div>
+
+                                                                <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
+                                                                    <div>{format!("Samples: {}", sample_count)}</div>
+                                                                    <div>{format!("Passed: {}", total_passed)}</div>
+                                                                    <div>{format!("Failed: {}", total_failed)}</div>
+                                                                    <div>"Showing latest 15 files"</div>
+                                                                </div>
+
+                                                                <div style="display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: 10px;">
+                                                                    <div style="background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 12px;">
+                                                                        <div style="color: #c2410c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
+                                                                            "Existing Errors"
+                                                                        </div>
+                                                                        <div style="color: #9a3412; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
+                                                                            {history_data.existing_errors.len()}
+                                                                        </div>
+                                                                        <div style="color: #7c2d12; font-size: 0.76rem; margin-top: 4px;">
+                                                                            "Failed before and still failing in latest JSON"
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 12px;">
+                                                                        <div style="color: #b91c1c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase;">
+                                                                            "New Errors"
+                                                                        </div>
+                                                                        <div style="color: #991b1b; font-size: 1.25rem; font-weight: 900; margin-top: 6px;">
+                                                                            {history_data.new_errors.len()}
+                                                                        </div>
+                                                                        <div style="color: #7f1d1d; font-size: 0.76rem; margin-top: 4px;">
+                                                                            "Failing in latest JSON but not seen failed in prior history"
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div style="display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 12px; margin-bottom: 14px;">
+                                                                <ErrorGroupTable
+                                                                    title="Existing Errors"
+                                                                    items=history_data.existing_errors.clone()
+                                                                    accent="#c2410c"
+                                                                />
+                                                                <ErrorGroupTable
+                                                                    title="New Errors"
+                                                                    items=history_data.new_errors.clone()
+                                                                    accent="#b91c1c"
+                                                                />
+                                                            </div>
+
+                                                            <div style="display: grid; gap: 10px;">
+                                                                {
+                                                                    history_data.points
+                                                                        .iter()
+                                                                        .map(|point| {
+                                                                            let label = point.label.clone();
+                                                                            let filename = point.filename.clone();
+                                                                            let passed = point.passed;
+                                                                            let failed = point.failed;
+                                                                            let total = point.total;
+                                                                            let items = point.items.clone();
+
+                                                                            view! {
+                                                                                <details style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                                                    <summary style="cursor: pointer; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; background: #f8fafc;">
+                                                                                        <div>
+                                                                                            <div style="color: #0f172a; font-size: 0.90rem; font-weight: 900;">
+                                                                                                {label}
+                                                                                            </div>
+                                                                                            <div style="color: #64748b; font-size: 0.72rem; font-weight: 700; margin-top: 4px;">
+                                                                                                {filename}
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 0.74rem; font-weight: 800;">
+                                                                                            <span style="color: #10b981;">{format!("Passed: {}", passed)}</span>
+                                                                                            <span style="color: #ef4444;">{format!("Failed: {}", failed)}</span>
+                                                                                            <span style="color: #334155;">{format!("Total: {}", total)}</span>
+                                                                                        </div>
+                                                                                    </summary>
+
+                                                                                    <div style="padding: 12px 16px 16px 16px; display: grid; gap: 10px;">
+                                                                                        {
+                                                                                            items
+                                                                                                .iter()
+                                                                                                .map(|item| {
+                                                                                                    let instance_label = item
+                                                                                                        .instance_name
+                                                                                                        .clone()
+                                                                                                        .unwrap_or_else(|| "-".to_string());
+
+                                                                                                    view! {
+                                                                                                        <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
+                                                                                                            <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
+                                                                                                                <span>{instance_label.clone()}</span>
+                                                                                                                <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
+                                                                                                            </summary>
+
+                                                                                                            <div style="padding: 0 12px 12px 12px;">
+                                                                                                                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                                                                                                    <tbody>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; width: 180px; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Instance Name"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Instance Status"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Health Status"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Details"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; color: #334155;">
+                                                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                    </tbody>
+                                                                                                                </table>
+                                                                                                            </div>
+                                                                                                        </details>
+                                                                                                    }
+                                                                                                })
+                                                                                                .collect_view()
+                                                                                        }
+                                                                                    </div>
+                                                                                </details>
+                                                                            }
+                                                                        })
+                                                                        .collect_view()
+                                                                }
+                                                            </div>
+                                                        </>
+                                                    }.into_view()
+                                                }
+                                            })
+                                        }}
+                                    </Transition>
+                                }.into_view()
                             }
                         }
                     >
-                        <p>"Dashboard logic here..."</p>
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 14px;">
+                            <div style="justify-self: start;">
+                                <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px; width: fit-content;">
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::All)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::All { "#1e293b" } else { "transparent" },
+                                            if filter.get() == Filter::All { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "ALL"
+                                    </button>
+
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Failed)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::Failed { "#ef4444" } else { "transparent" },
+                                            if filter.get() == Filter::Failed { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "FAILED"
+                                    </button>
+
+                                    <button
+                                        on:click=move |_| set_filter.set(Filter::Healthy)
+                                        style=move || format!(
+                                            "border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.84rem; background: {}; color: {};",
+                                            if filter.get() == Filter::Healthy { "#10b981" } else { "transparent" },
+                                            if filter.get() == Filter::Healthy { "white" } else { "#64748b" }
+                                        )
+                                    >
+                                        "HEALTHY"
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style="justify-self: center;">
+                                <h2 style="margin: 0; color: #1a39ea; font-weight: 900; letter-spacing: 0.3px; font-size: 1.1rem; text-align: center;">
+                                    "JDE Environment Health Dashboard"
+                                </h2>
+                            </div>
+
+                            <div style="justify-self: end;">
+                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+                                    <div style="min-width: 220px;">
+                                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.74rem; color: #64748b; font-weight: 700;">
+                                            <span>"Auto refresh"</span>
+                                            <span>{move || format!("{}s", seconds_left.get())}</span>
+                                        </div>
+
+                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden;">
+                                            <div style=move || format!(
+                                                "height: 100%; width: {:.2}%; background: #2563eb; transition: width 1s linear;",
+                                                refresh_pct()
+                                            )></div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        on:click=move |_| {
+                                            set_seconds_left.set(REFRESH_SECONDS);
+                                            health_resource.refetch();
+                                        }
+                                        style="border: none; background: #2563eb; color: white; padding: 9px 13px; border-radius: 8px; cursor: pointer; font-weight: 700;"
+                                    >
+                                        "Refresh now"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Transition fallback=|| view! { <p>"Processing..."</p> }>
+                            {move || {
+                                health_resource.get().map(|res| match res {
+                                    Err(e) => view! {
+                                        <div style="color: #ef4444; padding: 16px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                            <div style="font-weight: 700; margin-bottom: 6px;">"Load failed"</div>
+                                            <div>{e}</div>
+                                        </div>
+                                    }.into_view(),
+
+                                    Ok(items) => {
+                                        let filtered_for_summary: Vec<EnvStatus> = items
+                                            .iter()
+                                            .cloned()
+                                            .filter(|item| match filter.get() {
+                                                Filter::All => true,
+                                                Filter::Failed => item.err > 0,
+                                                Filter::Healthy => item.err == 0,
+                                            })
+                                            .collect();
+
+                                        let total_ok: usize = filtered_for_summary.iter().map(|i| i.ok).sum();
+                                        let total_inst: usize = filtered_for_summary.iter().map(|i| i.total).sum();
+                                        let total_err: usize = filtered_for_summary.iter().map(|i| i.err).sum();
+
+                                        let total_customers: usize = {
+                                            let mut s = BTreeMap::new();
+                                            for item in &filtered_for_summary {
+                                                s.insert(item.customer.clone(), true);
+                                            }
+                                            s.len()
+                                        };
+
+                                        let health_pct = calc_pct(total_ok, total_inst);
+                                        let customer_groups = group_by_customer(items, filter.get());
+                                        let chart_data = build_customer_chart_data(&customer_groups);
+
+                                        view! {
+                                            <>
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
+                                                            <div>
+                                                                <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
+                                                                    "Customer Distribution"
+                                                                </div>
+                                                                <div style="color: #0f172a; font-size: 0.92rem; font-weight: 900; margin-top: 4px;">
+                                                                    "Instances by customer"
+                                                                </div>
+                                                            </div>
+                                                            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700;">
+                                                                {format!("{} customers", total_customers)}
+                                                            </div>
+                                                        </div>
+
+                                                        <DoughnutChart data=chart_data />
+                                                    </div>
+
+                                                    <div style="display: grid; grid-template-rows: auto 1fr; gap: 10px;">
+                                                        <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                                <span style="font-weight: 800; color: #1e293b; font-size: 0.82rem;">"OVERALL HEALTH"</span>
+                                                                <span style=format!(
+                                                                    "font-weight: 900; font-size: 0.92rem; color: {};",
+                                                                    if health_pct > 90.0 { "#10b981" } else { "#ef4444" }
+                                                                )>
+                                                                    {format!("{:.1}%", health_pct)}
+                                                                </span>
+                                                            </div>
+
+                                                            <div style="background: #f1f5f9; height: 8px; border-radius: 999px; overflow: hidden;">
+                                                                <div style=format!(
+                                                                    "background: {}; height: 100%; width: {:.2}%; transition: width 0.4s;",
+                                                                    if health_pct > 90.0 { "#10b981" } else { "#ef4444" },
+                                                                    health_pct
+                                                                )></div>
+                                                            </div>
+
+                                                            <div style="margin-top: 8px; font-size: 0.72rem; color: #64748b;">
+                                                                {format!("{} healthy out of {} instances", total_ok, total_inst)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px;">
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Customers"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_customers}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Instances"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
+                                                            </div>
+
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; align-items: stretch;">
+                                                    {
+                                                        customer_groups
+                                                            .into_iter()
+                                                            .map(|group| {
+                                                                let customer_pct = calc_pct(group.ok, group.total);
+                                                                let customer_healthy = group.err == 0;
+                                                                let max_bar_value = group.envs.iter().map(|e| e.total).max().unwrap_or(1);
+
+                                                                view! {
+                                                                    <div style="background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 220px; display: flex; flex-direction: column;">
+                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+                                                                            <div>
+                                                                                <div style="color: #94a3b8; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
+                                                                                    "CUSTOMER"
+                                                                                </div>
+                                                                                <div style="font-size: 0.88rem; font-weight: 900; color: #0f172a; line-height: 1.1;">
+                                                                                    {group.customer.clone()}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div style=format!(
+                                                                                "font-size: 0.60rem; font-weight: 800; padding: 3px 7px; border-radius: 999px; background: {}; color: white;",
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                            )>
+                                                                                {if customer_healthy { "HEALTHY" } else { "ISSUES" }}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px;">
+                                                                            <div style="font-size: 0.74rem; color: #64748b;">
+                                                                                {format!("{} / {} healthy", group.ok, group.total)}
+                                                                            </div>
+                                                                            <div style="font-size: 0.82rem; font-weight: 900; color: #0f172a;">
+                                                                                {format!("{:.1}%", customer_pct)}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
+                                                                            <div style=format!(
+                                                                                "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
+                                                                                customer_pct,
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                            )></div>
+                                                                        </div>
+
+                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                            {
+                                                                                group.envs
+                                                                                    .into_iter()
+                                                                                    .map(|item| {
+                                                                                        let item_for_click = item.clone();
+                                                                                        let item_for_history = item.clone();
+
+                                                                                        let ok_height = if max_bar_value > 0 {
+                                                                                            (item.ok as f32 / max_bar_value as f32) * 60.0
+                                                                                        } else {
+                                                                                            4.0
+                                                                                        };
+
+                                                                                        let err_height = if max_bar_value > 0 {
+                                                                                            (item.err as f32 / max_bar_value as f32) * 60.0
+                                                                                        } else {
+                                                                                            1.0
+                                                                                        };
+
+                                                                                        view! {
+                                                                                            <div
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;"
+                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
+                                                                                            >
+                                                                                                <div
+                                                                                                    on:click=move |_| {
+                                                                                                        if let Some(window) = web_sys::window() {
+                                                                                                            if let Ok(history) = window.history() {
+                                                                                                                let _ = history.push_state_with_url(
+                                                                                                                    &JsValue::NULL,
+                                                                                                                    "",
+                                                                                                                    Some("#details"),
+                                                                                                                );
+                                                                                                            }
+                                                                                                        }
+                                                                                                        set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                        set_page_view.set(PageView::Detail);
+                                                                                                    }
+                                                                                                    style="width: 100%; display: flex; align-items: end; justify-content: center; gap: 4px; cursor: pointer;"
+                                                                                                >
+                                                                                                    <div
+                                                                                                        style="
+                                                                                                            writing-mode: vertical-rl;
+                                                                                                            transform: rotate(180deg);
+                                                                                                            font-size: 0.56rem;
+                                                                                                            font-weight: 900;
+                                                                                                            color: #1e293b;
+                                                                                                            line-height: 1;
+                                                                                                            white-space: nowrap;
+                                                                                                            text-align: center;
+                                                                                                        "
+                                                                                                    >
+                                                                                                        {item.env_name.clone()}
+                                                                                                    </div>
+
+                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px;">
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                                {item.ok}
+                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                ok_height,
+                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
+                                                                                                        </div>
+
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                                {item.err}
+                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                err_height,
+                                                                                                                if item.err > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
+                                                                                                    {format!("{}/{}", item.ok, item.total)}
+                                                                                                </div>
+
+                                                                                                <button
+                                                                                                    on:click=move |_| {
+                                                                                                        if let Some(window) = web_sys::window() {
+                                                                                                            if let Ok(history) = window.history() {
+                                                                                                                let _ = history.push_state_with_url(
+                                                                                                                    &JsValue::NULL,
+                                                                                                                    "",
+                                                                                                                    Some("#history"),
+                                                                                                                );
+                                                                                                            }
+                                                                                                        }
+                                                                                                        set_selected_history_env.set(Some(item_for_history.clone()));
+                                                                                                        set_page_view.set(PageView::History);
+                                                                                                    }
+                                                                                                    style="border: none; background: #0f766e; color: white; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 0.52rem; font-weight: 800;"
+                                                                                                >
+                                                                                                    "History"
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        }
+                                                                                    })
+                                                                                    .collect_view()
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                }
+                                                            })
+                                                            .collect_view()
+                                                    }
+                                                </div>
+                                            </>
+                                        }.into_view()
+                                    }
+                                })
+                            }}
+                        </Transition>
                     </Show>
                 </div>
             </div>

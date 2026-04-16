@@ -80,6 +80,13 @@ enum PageView {
     History,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum DetailSortField {
+    InstanceName,
+    InstanceStatus,
+    HealthStatus,
+}
+
 const BASE_URL: &str = "https://objectstorage.us-ashburn-1.oraclecloud.com/p/2iZ2CfFNkV8LVuzg3LHTaqjseLntrFEtA991Jg9gUUDQjqjP6sSQUqyItWJh15ya/n/id7bn4roxxyb/b/JDE_Monitoring_Data/o";
 
 fn log(msg: &str) {
@@ -503,7 +510,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 220px; max-width: 420px; width: 100%; margin: 0 auto; position: relative;">
+        <div style="height: 260px; max-width: 420px; width: 100%; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -627,6 +634,8 @@ fn App() -> impl IntoView {
     let (selected_env, set_selected_env) = create_signal::<Option<EnvStatus>>(None);
     let (selected_history_env, set_selected_history_env) = create_signal::<Option<EnvStatus>>(None);
     let (page_view, set_page_view) = create_signal(PageView::Dashboard);
+    let (detail_sort_field, set_detail_sort_field) = create_signal(DetailSortField::InstanceName);
+    let (detail_sort_asc, set_detail_sort_asc) = create_signal(true);
 
     let health_resource = create_resource(
         || (),
@@ -780,6 +789,27 @@ fn App() -> impl IntoView {
                                                     let pct = calc_pct(env.ok, env.total);
                                                     let env_for_history = env.clone();
 
+                                                    let mut sorted_json = raw_json.clone();
+                                                    sorted_json.sort_by(|a, b| {
+                                                        let a_val = match detail_sort_field.get() {
+                                                            DetailSortField::InstanceName => a.instance_name.as_deref().unwrap_or(""),
+                                                            DetailSortField::InstanceStatus => a.instance_status.as_deref().unwrap_or(""),
+                                                            DetailSortField::HealthStatus => a.health_status.as_deref().unwrap_or(""),
+                                                        };
+
+                                                        let b_val = match detail_sort_field.get() {
+                                                            DetailSortField::InstanceName => b.instance_name.as_deref().unwrap_or(""),
+                                                            DetailSortField::InstanceStatus => b.instance_status.as_deref().unwrap_or(""),
+                                                            DetailSortField::HealthStatus => b.health_status.as_deref().unwrap_or(""),
+                                                        };
+
+                                                        if detail_sort_asc.get() {
+                                                            a_val.cmp(b_val)
+                                                        } else {
+                                                            b_val.cmp(a_val)
+                                                        }
+                                                    });
+
                                                     view! {
                                                         <>
                                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
@@ -858,13 +888,46 @@ fn App() -> impl IntoView {
                                                             </div>
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <div style="font-weight: 800; margin-bottom: 10px; color: #0f172a;">
-                                                                    "Health Cheails"
+                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
+                                                                    <div style="font-weight: 800; color: #0f172a;">
+                                                                        "Health Cheails"
+                                                                    </div>
+
+                                                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                                                                        <select
+                                                                            on:change=move |ev| {
+                                                                                let value = event_target_value(&ev);
+                                                                                match value.as_str() {
+                                                                                    "instance_status" => set_detail_sort_field.set(DetailSortField::InstanceStatus),
+                                                                                    "health_status" => set_detail_sort_field.set(DetailSortField::HealthStatus),
+                                                                                    _ => set_detail_sort_field.set(DetailSortField::InstanceName),
+                                                                                }
+                                                                            }
+                                                                            style="border: 1px solid #cbd5e1; background: white; color: #334155; padding: 8px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 700;"
+                                                                        >
+                                                                            <option value="instance_name" selected=move || detail_sort_field.get() == DetailSortField::InstanceName>
+                                                                                "Instance Name"
+                                                                            </option>
+                                                                            <option value="instance_status" selected=move || detail_sort_field.get() == DetailSortField::InstanceStatus>
+                                                                                "Instance Status"
+                                                                            </option>
+                                                                            <option value="health_status" selected=move || detail_sort_field.get() == DetailSortField::HealthStatus>
+                                                                                "Health Status"
+                                                                            </option>
+                                                                        </select>
+
+                                                                        <button
+                                                                            on:click=move |_| set_detail_sort_asc.update(|v| *v = !*v)
+                                                                            style="border: none; background: #1e293b; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 0.78rem;"
+                                                                        >
+                                                                            {move || if detail_sort_asc.get() { "Ascending" } else { "Descending" }}
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
 
                                                                 <div style="display: grid; gap: 10px;">
                                                                     {
-                                                                        raw_json
+                                                                        sorted_json
                                                                             .iter()
                                                                             .map(|item| {
                                                                                 let instance_label = item

@@ -503,7 +503,7 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 260px; max-width: 420px; width: 100%; margin: 0 auto; position: relative;">
+        <div style="height: 220px; max-width: 420px; width: 100%; margin: 0 auto; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }

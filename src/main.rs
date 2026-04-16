@@ -53,6 +53,16 @@ pub struct HistoricalPoint {
     pub filename: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HistoricalFileData {
+    pub label: String,
+    pub filename: String,
+    pub passed: usize,
+    pub failed: usize,
+    pub total: usize,
+    pub items: Vec<HealthInstance>,
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct OCIObject {
     pub name: String,
@@ -326,7 +336,7 @@ async fn fetch_jde_health_data() -> Result<Vec<EnvStatus>, String> {
     Ok(results)
 }
 
-async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<HistoricalPoint>, String> {
+async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<HistoricalFileData>, String> {
     let mut matching_files: Vec<String> = fetch_object_names()
         .await?
         .into_iter()
@@ -388,12 +398,13 @@ async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<His
                     }
                 }
 
-                points.push(HistoricalPoint {
+                points.push(HistoricalFileData {
                     label: format_history_label(&month, &year, &hhmm),
+                    filename,
                     passed,
                     failed,
                     total: passed + failed,
-                    filename,
+                    items: instances,
                 });
             }
             Err(e) => log(&e),
@@ -517,117 +528,6 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
 }
 
 #[component]
-fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
-    let canvas_ref = create_node_ref::<html::Canvas>();
-
-    create_effect(move |_| {
-        let Some(canvas) = canvas_ref.get() else {
-            return;
-        };
-
-        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
-        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
-        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
-
-        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
-        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
-        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
-
-        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
-            .ok()
-            .filter(|v| !v.is_undefined() && !v.is_null());
-
-        let Some(chart_ctor) = chart_ctor else {
-            log("Chart.js is not loaded on window.Chart");
-            return;
-        };
-
-        let window = web_sys::window().unwrap();
-        let chart_key = JsValue::from_str("__jde_history_chart");
-
-        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
-            if !existing.is_undefined() && !existing.is_null() {
-                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
-                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
-                        let _ = destroy.call0(&existing);
-                    }
-                }
-            }
-        }
-
-        let dataset_passed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
-        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let dataset_failed = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
-        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
-
-        let datasets = js_sys::Array::new();
-        datasets.push(&dataset_passed);
-        datasets.push(&dataset_failed);
-
-        let data_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
-        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
-
-        let x_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let y_ticks = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
-
-        let x_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
-
-        let y_scale = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
-
-        let scales = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
-        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
-
-        let legend = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
-
-        let plugins = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
-
-        let options = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
-        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
-
-        let config = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
-        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
-
-        let args = js_sys::Array::new();
-        args.push(canvas.as_ref());
-        args.push(&config);
-
-        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
-            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
-                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
-            }
-        }
-    });
-
-    view! {
-        <div style="height: 420px; width: 100%; position: relative;">
-            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
-        </div>
-    }
-}
-
-#[component]
 fn App() -> impl IntoView {
     let (filter, set_filter) = create_signal(Filter::All);
     let (seconds_left, set_seconds_left) = create_signal(REFRESH_SECONDS);
@@ -663,7 +563,7 @@ fn App() -> impl IntoView {
             match selected {
                 Some(env) => {
                     let points = fetch_history_data(&env.customer, &env.env_name).await?;
-                    Ok::<(EnvStatus, Vec<HistoricalPoint>), String>((env, points))
+                    Ok::<(EnvStatus, Vec<HistoricalFileData>), String>((env, points))
                 }
                 None => Err("No historical environment selected.".to_string()),
             }
@@ -890,7 +790,7 @@ fn App() -> impl IntoView {
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
                                                                     <div style="font-weight: 800; color: #0f172a;">
-                                                                        "Health Cheails"
+                                                                        "Health Details"
                                                                     </div>
 
                                                                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -937,7 +837,7 @@ fn App() -> impl IntoView {
 
                                                                                 view! {
                                                                                     <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
-                                                                                        <summary style="cursor: pointer; list-style: none; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
+                                                                                        <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
                                                                                             <span>{instance_label.clone()}</span>
                                                                                             <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
                                                                                         </summary>
@@ -1085,21 +985,105 @@ fn App() -> impl IntoView {
                                                                     <div>{format!("Failed: {}", total_failed)}</div>
                                                                     <div>"Showing latest 15 files"</div>
                                                                 </div>
-
-                                                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
-                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span>
-                                                                        <span>"Passed"</span>
-                                                                    </div>
-                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
-                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px;"></span>
-                                                                        <span>"Failed"</span>
-                                                                    </div>
-                                                                </div>
                                                             </div>
 
-                                                            <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                                                <HistoryBarChart data=points.clone() />
+                                                            <div style="display: grid; gap: 10px;">
+                                                                {
+                                                                    points
+                                                                        .iter()
+                                                                        .map(|point| {
+                                                                            let label = point.label.clone();
+                                                                            let filename = point.filename.clone();
+                                                                            let passed = point.passed;
+                                                                            let failed = point.failed;
+                                                                            let total = point.total;
+                                                                            let items = point.items.clone();
+
+                                                                            view! {
+                                                                                <details style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                                                    <summary style="cursor: pointer; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; background: #f8fafc;">
+                                                                                        <div>
+                                                                                            <div style="color: #0f172a; font-size: 0.90rem; font-weight: 900;">
+                                                                                                {label}
+                                                                                            </div>
+                                                                                            <div style="color: #64748b; font-size: 0.72rem; font-weight: 700; margin-top: 4px;">
+                                                                                                {filename}
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 0.74rem; font-weight: 800;">
+                                                                                            <span style="color: #10b981;">{format!("Passed: {}", passed)}</span>
+                                                                                            <span style="color: #ef4444;">{format!("Failed: {}", failed)}</span>
+                                                                                            <span style="color: #334155;">{format!("Total: {}", total)}</span>
+                                                                                        </div>
+                                                                                    </summary>
+
+                                                                                    <div style="padding: 12px 16px 16px 16px; display: grid; gap: 10px;">
+                                                                                        {
+                                                                                            items
+                                                                                                .iter()
+                                                                                                .map(|item| {
+                                                                                                    let instance_label = item
+                                                                                                        .instance_name
+                                                                                                        .clone()
+                                                                                                        .unwrap_or_else(|| "-".to_string());
+
+                                                                                                    view! {
+                                                                                                        <details style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;">
+                                                                                                            <summary style="cursor: pointer; padding: 12px; font-size: 0.82rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; justify-content: space-between;">
+                                                                                                                <span>{instance_label.clone()}</span>
+                                                                                                                <span style="font-size: 0.70rem; color: #64748b; font-weight: 700;">"Click to expand"</span>
+                                                                                                            </summary>
+
+                                                                                                            <div style="padding: 0 12px 12px 12px;">
+                                                                                                                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                                                                                                    <tbody>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; width: 180px; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Instance Name"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Instance Status"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Health Status"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155;">
+                                                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                        <tr>
+                                                                                                                            <td style="padding: 10px; font-weight: 800; color: #334155; background: #f8fafc;">
+                                                                                                                                "Details"
+                                                                                                                            </td>
+                                                                                                                            <td style="padding: 10px; color: #334155;">
+                                                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                                            </td>
+                                                                                                                        </tr>
+                                                                                                                    </tbody>
+                                                                                                                </table>
+                                                                                                            </div>
+                                                                                                        </details>
+                                                                                                    }
+                                                                                                })
+                                                                                                .collect_view()
+                                                                                        }
+                                                                                    </div>
+                                                                                </details>
+                                                                            }
+                                                                        })
+                                                                        .collect_view()
+                                                                }
                                                             </div>
                                                         </>
                                                     }.into_view()
@@ -1320,156 +1304,131 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
+                                                                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px;">
+                                                                            <div style="font-size: 0.74rem; color: #64748b;">
+                                                                                {format!("{} / {} healthy", group.ok, group.total)}
+                                                                            </div>
+                                                                            <div style="font-size: 0.82rem; font-weight: 900; color: #0f172a;">
+                                                                                {format!("{:.1}%", customer_pct)}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style="background: #e2e8f0; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 10px;">
+                                                                            <div style=format!(
+                                                                                "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
+                                                                                customer_pct,
+                                                                                if customer_healthy { "#10b981" } else { "#ef4444" }
+                                                                            )></div>
+                                                                        </div>
+
                                                                         <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
-                                    {
-    group.envs
-        .into_iter()
-        .map(|item| {
-            let item_for_click = item.clone();
-            let item_for_history = item.clone();
+                                                                            {
+                                                                                group.envs
+                                                                                    .into_iter()
+                                                                                    .map(|item| {
+                                                                                        let item_for_click = item.clone();
+                                                                                        let item_for_history = item.clone();
 
-            let ok_height = if max_bar_value > 0 {
-                (item.ok as f32 / max_bar_value as f32) * 60.0
-            } else {
-                4.0
-            };
+                                                                                        let ok_height = if max_bar_value > 0 {
+                                                                                            (item.ok as f32 / max_bar_value as f32) * 60.0
+                                                                                        } else {
+                                                                                            4.0
+                                                                                        };
 
-            let err_height = if max_bar_value > 0 {
-                (item.err as f32 / max_bar_value as f32) * 60.0
-            } else {
-                1.0
-            };
+                                                                                        let err_height = if max_bar_value > 0 {
+                                                                                            (item.err as f32 / max_bar_value as f32) * 60.0
+                                                                                        } else {
+                                                                                            1.0
+                                                                                        };
 
-            view! {
-                <div
-                    style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;"
-                    title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
-                >
-                    <div
-                        on:click=move |_| {
-                            if let Some(window) = web_sys::window() {
-                                if let Ok(history) = window.history() {
-                                    let _ = history.push_state_with_url(
-                                        &JsValue::NULL,
-                                        "",
-                                        Some("#details"),
-                                    );
-                                }
-                            }
-                            set_selected_env.set(Some(item_for_click.clone()));
-                            set_page_view.set(PageView::Detail);
-                        }
-                        style="width: 100%; display: flex; align-items: end; justify-content: center; gap: 4px; cursor: pointer;"
-                    >
-                        <div
-                            style="
-                                writing-mode: vertical-rl;
-                                transform: rotate(180deg);
-                                font-size: 0.56rem;
-                                font-weight: 900;
-                                color: #1e293b;
-                                line-height: 1;
-                                white-space: nowrap;
-                                text-align: center;
-                            "
-                        >
-                            {item.env_name.clone()}
-                        </div>
+                                                                                        view! {
+                                                                                            <div
+                                                                                                style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;"
+                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
+                                                                                            >
+                                                                                                <div
+                                                                                                    on:click=move |_| {
+                                                                                                        if let Some(window) = web_sys::window() {
+                                                                                                            if let Ok(history) = window.history() {
+                                                                                                                let _ = history.push_state_with_url(
+                                                                                                                    &JsValue::NULL,
+                                                                                                                    "",
+                                                                                                                    Some("#details"),
+                                                                                                                );
+                                                                                                            }
+                                                                                                        }
+                                                                                                        set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                        set_page_view.set(PageView::Detail);
+                                                                                                    }
+                                                                                                    style="width: 100%; display: flex; align-items: end; justify-content: center; gap: 4px; cursor: pointer;"
+                                                                                                >
+                                                                                                    <div
+                                                                                                        style="
+                                                                                                            writing-mode: vertical-rl;
+                                                                                                            transform: rotate(180deg);
+                                                                                                            font-size: 0.56rem;
+                                                                                                            font-weight: 900;
+                                                                                                            color: #1e293b;
+                                                                                                            line-height: 1;
+                                                                                                            white-space: nowrap;
+                                                                                                            text-align: center;
+                                                                                                        "
+                                                                                                    >
+                                                                                                        {item.env_name.clone()}
+                                                                                                    </div>
 
-                        <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px;">
-                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
-                                    {item.ok}
-                                </div>
-                                <div style=format!(
-                                    "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
-                                    ok_height,
-                                    if item.ok > 0 { "4px" } else { "1px" }
-                                )></div>
-                            </div>
+                                                                                                    <div style="height: 64px; display: flex; align-items: end; justify-content: center; gap: 4px;">
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                                {item.ok}
+                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                ok_height,
+                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
+                                                                                                        </div>
 
-                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
-                                    {item.err}
-                                </div>
-                                <div style=format!(
-                                    "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
-                                    err_height,
-                                    if item.err > 0 { "4px" } else { "1px" }
-                                )></div>
-                            </div>
-                        </div>
-                    </div>
+                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                                {item.err}
+                                                                                                            </div>
+                                                                                                            <div style=format!(
+                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
+                                                                                                                err_height,
+                                                                                                                if item.err > 0 { "4px" } else { "1px" }
+                                                                                                            )></div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </div>
 
-                    <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
-                        {format!("{}/{}", item.ok, item.total)}
-                    </div>
+                                                                                                <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px;">
+                                                                                                    {format!("{}/{}", item.ok, item.total)}
+                                                                                                </div>
 
-                    <button
-                        on:click=move |_| {
-                            if let Some(window) = web_sys::window() {
-                                if let Ok(history) = window.history() {
-                                    let _ = history.push_state_with_url(
-                                        &JsValue::NULL,
-                                        "",
-                                        Some("#history"),
-                                    );
-                                }
-                            }
-                            set_selected_history_env.set(Some(item_for_history.clone()));
-                            set_page_view.set(PageView::History);
-                        }
-                        style="margin-top: 6px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
-                    >
-                        "History"
-                    </button>
-                </div>
-            }
-        })
-        .collect_view()
-}
-                                                                        </div>
-
-                                                                        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 6px; font-size: 0.58rem; color: #475569;">
-                                                                            <div style="display: flex; align-items: center; gap: 4px;">
-                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span>
-                                                                                <span>"Passed"</span>
-                                                                            </div>
-                                                                            <div style="display: flex; align-items: center; gap: 4px;">
-                                                                                <span style="display: inline-block; width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span>
-                                                                                <span>"Failed"</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div style="margin-top: auto; padding-top: 8px;">
-                                                                            <div style="background: #f8fafc; border-radius: 10px; padding: 8px; border: 1px solid #e2e8f0;">
-                                                                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                                                                    <span style="font-size: 0.62rem; font-weight: 800; color: #334155;">
-                                                                                        "Customer Summary"
-                                                                                    </span>
-
-                                                                                    <span style=format!(
-                                                                                        "font-size: 0.68rem; font-weight: 900; color: {};",
-                                                                                        if customer_healthy { "#10b981" } else { "#ef4444" }
-                                                                                    )>
-                                                                                        {format!("{:.1}%", customer_pct)}
-                                                                                    </span>
-                                                                                </div>
-
-                                                                                <div style="background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden;">
-                                                                                    <div style=format!(
-                                                                                        "height: 100%; width: {:.2}%; background: {}; transition: width 0.4s;",
-                                                                                        customer_pct,
-                                                                                        if customer_healthy { "#10b981" } else { "#ef4444" }
-                                                                                    )></div>
-                                                                                </div>
-
-                                                                                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.58rem; color: #64748b;">
-                                                                                    <span>{format!("OK {}", group.ok)}</span>
-                                                                                    <span>{format!("ERR {}", group.err)}</span>
-                                                                                    <span>{format!("TOTAL {}", group.total)}</span>
-                                                                                </div>
-                                                                            </div>
+                                                                                                <button
+                                                                                                    on:click=move |_| {
+                                                                                                        if let Some(window) = web_sys::window() {
+                                                                                                            if let Ok(history) = window.history() {
+                                                                                                                let _ = history.push_state_with_url(
+                                                                                                                    &JsValue::NULL,
+                                                                                                                    "",
+                                                                                                                    Some("#history"),
+                                                                                                                );
+                                                                                                            }
+                                                                                                        }
+                                                                                                        set_selected_history_env.set(Some(item_for_history.clone()));
+                                                                                                        set_page_view.set(PageView::History);
+                                                                                                    }
+                                                                                                    style="border: none; background: #0f766e; color: white; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 0.52rem; font-weight: 800;"
+                                                                                                >
+                                                                                                    "History"
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        }
+                                                                                    })
+                                                                                    .collect_view()
+                                                                            }
                                                                         </div>
                                                                     </div>
                                                                 }
@@ -1491,5 +1450,5 @@ fn App() -> impl IntoView {
 }
 
 fn main() {
-    mount_to_body(|| view! { <App /> })
+    mount_to_body(|| view! { <App /> });
 }

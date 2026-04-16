@@ -861,33 +861,63 @@ fn App() -> impl IntoView {
                                                                     {
                                                                         raw_json
                                                                             .iter()
-                                                                            .enumerate()
-                                                                            .map(|(idx, item)| {
-                                                                                view! {
-                                                                                    <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc;">
-                                                                                        <div style="font-size: 0.72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px;">
-                                                                                            {format!("Instance {}", idx + 1)}
-                                                                                        </div>
+                                                                            .map(|item| {
+                                                                                let instance_title = item
+                                                                                    .instance_name
+                                                                                    .clone()
+                                                                                    .unwrap_or_else(|| "-".to_string());
 
-                                                                                        <div style="display: grid; gap: 6px; color: #334155; font-size: 0.82rem;">
-                                                                                            <div>
-                                                                                                <strong>"Instance Name: "</strong>
-                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Instance Status: "</strong>
-                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Health Status: "</strong>
-                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                            </div>
-                                                                                            <div>
-                                                                                                <strong>"Details: "</strong>
-                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                view! {
+                                                                                    <details
+                                                                                        style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;"
+                                                                                    >
+                                                                                        <summary
+                                                                                            style="cursor: pointer; list-style: none; padding: 12px 14px; font-size: 0.82rem; font-weight: 900; color: #0f172a; user-select: none;"
+                                                                                        >
+                                                                                            {instance_title}
+                                                                                        </summary>
+
+                                                                                        <div style="padding: 0 14px 14px 14px;">
+                                                                                            <div style="overflow-x: auto;">
+                                                                                                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-size: 0.82rem;">
+                                                                                                    <tbody>
+                                                                                                        <tr>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800; width: 220px;">
+                                                                                                                "Instance Name"
+                                                                                                            </td>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+                                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800;">
+                                                                                                                "Instance Status"
+                                                                                                            </td>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+                                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800;">
+                                                                                                                "Health Status"
+                                                                                                            </td>
+                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+                                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                        <tr>
+                                                                                                            <td style="padding: 10px 12px; background: #f8fafc; color: #475569; font-weight: 800; vertical-align: top;">
+                                                                                                                "Details"
+                                                                                                            </td>
+                                                                                                            <td style="padding: 10px 12px; color: #0f172a; white-space: pre-wrap; word-break: break-word;">
+                                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    </tbody>
+                                                                                                </table>
                                                                                             </div>
                                                                                         </div>
-                                                                                    </div>
+                                                                                    </details>
                                                                                 }
                                                                             })
                                                                             .collect_view()
@@ -1226,125 +1256,125 @@ fn App() -> impl IntoView {
                                                                 <div style="font-size: 1.25rem; font-weight: 900; color: #0f172a; margin-top: 6px;">{total_inst}</div>
                                                             </div>
 
-                                                            <details style="background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                                <summary style="cursor: pointer; list-style: none; padding: 12px;">
-                                                                    <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
-                                                                    <div style="font-size: 1.05rem; font-weight: 900; color: #10b981; margin-top: 6px;">
-                                                                        {format!("{} out of {}", total_ok, total_inst)}
-                                                                    </div>
-                                                                    <div style="font-size: 0.70rem; color: #64748b; margin-top: 4px;">
-                                                                        "Click to expand"
-                                                                    </div>
-                                                                </summary>
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Healthy"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #10b981; margin-top: 6px;">{total_ok}</div>
+                                                            </div>
 
-                                                                <div style="padding: 0 12px 12px 12px;">
-                                                                    <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                                        <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
-                                                                            <thead style="position: sticky; top: 0; background: #f8fafc;">
-                                                                                <tr>
-                                                                                    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
-                                                                                    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
-                                                                                    <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Healthy"</th>
-                                                                                    <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {
-                                                                                    healthy_envs
-                                                                                        .into_iter()
-                                                                                        .map(|item| {
-                                                                                            let item_for_click = item.clone();
-                                                                                            view! {
-                                                                                                <tr
-                                                                                                    on:click=move |_| {
-                                                                                                        if let Some(window) = web_sys::window() {
-                                                                                                            if let Ok(history) = window.history() {
-                                                                                                                let _ = history.push_state_with_url(
-                                                                                                                    &JsValue::NULL,
-                                                                                                                    "",
-                                                                                                                    Some("#details"),
-                                                                                                                );
-                                                                                                            }
-                                                                                                        }
-                                                                                                        set_selected_env.set(Some(item_for_click.clone()));
-                                                                                                        set_page_view.set(PageView::Detail);
+                                                            <div style="background: white; border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
+                                                                <div style="font-size: 1.25rem; font-weight: 900; color: #ef4444; margin-top: 6px;">{total_err}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; margin-bottom: 14px;">
+                                                    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                        <div style="padding: 12px 12px 8px 12px; font-size: 0.82rem; font-weight: 900; color: #0f172a;">
+                                                            "Failed Environments"
+                                                        </div>
+                                                        <div style="padding: 0 12px 12px 12px;">
+                                                            <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                                <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
+                                                                    <thead style="position: sticky; top: 0; background: #f8fafc;">
+                                                                        <tr>
+                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
+                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
+                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Failed"</th>
+                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {
+                                                                            failed_envs
+                                                                                .into_iter()
+                                                                                .map(|item| {
+                                                                                    let item_for_click = item.clone();
+
+                                                                                    view! {
+                                                                                        <tr
+                                                                                            on:click=move |_| {
+                                                                                                if let Some(window) = web_sys::window() {
+                                                                                                    if let Ok(history) = window.history() {
+                                                                                                        let _ = history.push_state_with_url(
+                                                                                                            &JsValue::NULL,
+                                                                                                            "",
+                                                                                                            Some("#details"),
+                                                                                                        );
                                                                                                     }
-                                                                                                    style="cursor: pointer;"
-                                                                                                >
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #10b981; text-align: right; font-weight: 800;">{item.ok}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
-                                                                                                </tr>
+                                                                                                }
+                                                                                                set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                set_page_view.set(PageView::Detail);
                                                                                             }
-                                                                                        })
-                                                                                        .collect_view()
-                                                                                }
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </details>
+                                                                                            style="cursor: pointer;"
+                                                                                        >
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #ef4444; text-align: right; font-weight: 800;">{item.err}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
+                                                                                        </tr>
+                                                                                    }
+                                                                                })
+                                                                                .collect_view()
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                                                            <details style="background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                                <summary style="cursor: pointer; list-style: none; padding: 12px;">
-                                                                    <div style="color: #94a3b8; font-size: 0.64rem; font-weight: 800; text-transform: uppercase;">"Errors"</div>
-                                                                    <div style="font-size: 1.05rem; font-weight: 900; color: #ef4444; margin-top: 6px;">
-                                                                        {format!("{} out of {}", total_err, total_inst)}
-                                                                    </div>
-                                                                    <div style="font-size: 0.70rem; color: #64748b; margin-top: 4px;">
-                                                                        "Click to expand"
-                                                                    </div>
-                                                                </summary>
+                                                    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
+                                                        <div style="padding: 12px 12px 8px 12px; font-size: 0.82rem; font-weight: 900; color: #0f172a;">
+                                                            "Healthy Environments"
+                                                        </div>
+                                                        <div style="padding: 0 12px 12px 12px;">
+                                                            <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                                <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
+                                                                    <thead style="position: sticky; top: 0; background: #f8fafc;">
+                                                                        <tr>
+                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
+                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
+                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Healthy"</th>
+                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {
+                                                                            healthy_envs
+                                                                                .into_iter()
+                                                                                .map(|item| {
+                                                                                    let item_for_click = item.clone();
 
-                                                                <div style="padding: 0 12px 12px 12px;">
-                                                                    <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                                        <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
-                                                                            <thead style="position: sticky; top: 0; background: #f8fafc;">
-                                                                                <tr>
-                                                                                    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
-                                                                                    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
-                                                                                    <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Failed"</th>
-                                                                                    <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {
-                                                                                    failed_envs
-                                                                                        .into_iter()
-                                                                                        .map(|item| {
-                                                                                            let item_for_click = item.clone();
-                                                                                            view! {
-                                                                                                <tr
-                                                                                                    on:click=move |_| {
-                                                                                                        if let Some(window) = web_sys::window() {
-                                                                                                            if let Ok(history) = window.history() {
-                                                                                                                let _ = history.push_state_with_url(
-                                                                                                                    &JsValue::NULL,
-                                                                                                                    "",
-                                                                                                                    Some("#details"),
-                                                                                                                );
-                                                                                                            }
-                                                                                                        }
-                                                                                                        set_selected_env.set(Some(item_for_click.clone()));
-                                                                                                        set_page_view.set(PageView::Detail);
+                                                                                    view! {
+                                                                                        <tr
+                                                                                            on:click=move |_| {
+                                                                                                if let Some(window) = web_sys::window() {
+                                                                                                    if let Ok(history) = window.history() {
+                                                                                                        let _ = history.push_state_with_url(
+                                                                                                            &JsValue::NULL,
+                                                                                                            "",
+                                                                                                            Some("#details"),
+                                                                                                        );
                                                                                                     }
-                                                                                                    style="cursor: pointer;"
-                                                                                                >
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #ef4444; text-align: right; font-weight: 800;">{item.err}</td>
-                                                                                                    <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
-                                                                                                </tr>
+                                                                                                }
+                                                                                                set_selected_env.set(Some(item_for_click.clone()));
+                                                                                                set_page_view.set(PageView::Detail);
                                                                                             }
-                                                                                        })
-                                                                                        .collect_view()
-                                                                                }
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </details>
+                                                                                            style="cursor: pointer;"
+                                                                                        >
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #10b981; text-align: right; font-weight: 800;">{item.ok}</td>
+                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
+                                                                                        </tr>
+                                                                                    }
+                                                                                })
+                                                                                .collect_view()
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1418,7 +1448,9 @@ fn App() -> impl IntoView {
                                                                                                 >
                                                                                                     <div style="height: 72px; display: flex; align-items: end; justify-content: center; gap: 4px;">
                                                                                                         <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">{item.ok}</div>
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
+                                                                                                                {item.ok}
+                                                                                                            </div>
                                                                                                             <div style=format!(
                                                                                                                 "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
                                                                                                                 ok_height,
@@ -1427,7 +1459,9 @@ fn App() -> impl IntoView {
                                                                                                         </div>
 
                                                                                                         <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">{item.err}</div>
+                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
+                                                                                                                {item.err}
+                                                                                                            </div>
                                                                                                             <div style=format!(
                                                                                                                 "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
                                                                                                                 err_height,
@@ -1439,10 +1473,6 @@ fn App() -> impl IntoView {
 
                                                                                                 <div style="font-size: 0.58rem; font-weight: 900; color: #1e293b; line-height: 1; text-align: center; word-break: break-word;">
                                                                                                     {item.env_name.clone()}
-                                                                                                </div>
-
-                                                                                                <div style="font-size: 0.52rem; color: #64748b; margin-top: 2px; text-align: center;">
-                                                                                                    {format!("{}/{}", item.ok, item.total)}
                                                                                                 </div>
 
                                                                                                 <button
@@ -1459,7 +1489,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="align-self: center; margin-top: 2px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
+                                                                                                    style="border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>

@@ -53,17 +53,6 @@ pub struct HistoricalPoint {
     pub filename: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct HistoricalJsonRecord {
-    pub filename: String,
-    pub label: String,
-    pub data: Vec<HealthInstance>,
-    pub pretty_json: String,
-    pub passed: usize,
-    pub failed: usize,
-    pub total: usize,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct OCIObject {
     pub name: String,
@@ -408,92 +397,6 @@ async fn fetch_history_data(customer: &str, servergroup: &str) -> Result<Vec<His
     Ok(points)
 }
 
-async fn fetch_history_json_data(
-    customer: &str,
-    servergroup: &str,
-) -> Result<Vec<HistoricalJsonRecord>, String> {
-    let mut matching_files: Vec<String> = fetch_object_names()
-        .await?
-        .into_iter()
-        .filter(|name| matches_history_file(name, customer, servergroup))
-        .collect();
-
-    matching_files.sort();
-    matching_files.reverse();
-    matching_files.truncate(15);
-    matching_files.reverse();
-
-    if matching_files.is_empty() {
-        return Err(format!(
-            "No historical files found for customer '{}' and servergroup '{}'",
-            customer, servergroup
-        ));
-    }
-
-    let mut fetch_tasks = FuturesUnordered::new();
-
-    for filename in matching_files {
-        fetch_tasks.push(async move {
-            let instances = fetch_json_file(&filename).await?;
-            Ok::<(String, Vec<HealthInstance>), String>((filename, instances))
-        });
-    }
-
-    let mut records = Vec::new();
-
-    while let Some(result) = fetch_tasks.next().await {
-        match result {
-            Ok((filename, instances)) => {
-                let Some((_, _, month, year, hhmm)) = parse_history_filename(&filename) else {
-                    continue;
-                };
-
-                let mut passed = 0usize;
-                let mut failed = 0usize;
-
-                for inst in &instances {
-                    let instance_status = inst
-                        .instance_status
-                        .as_deref()
-                        .unwrap_or("")
-                        .trim()
-                        .to_uppercase();
-
-                    let health_status = inst
-                        .health_status
-                        .as_deref()
-                        .unwrap_or("")
-                        .trim()
-                        .to_lowercase();
-
-                    if instance_status == "RUNNING" && health_status == "passed" {
-                        passed += 1;
-                    } else {
-                        failed += 1;
-                    }
-                }
-
-                let pretty_json = serde_json::to_string_pretty(&instances)
-                    .map_err(|e| format!("Failed to format historical JSON for {}: {}", filename, e))?;
-
-                records.push(HistoricalJsonRecord {
-                    filename,
-                    label: format_history_label(&month, &year, &hhmm),
-                    data: instances,
-                    pretty_json,
-                    passed,
-                    failed,
-                    total: passed + failed,
-                });
-            }
-            Err(e) => log(&e),
-        }
-    }
-
-    records.sort_by(|a, b| a.filename.cmp(&b.filename));
-    Ok(records)
-}
-
 #[component]
 fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     let canvas_ref = create_node_ref::<html::Canvas>();
@@ -548,7 +451,6 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderColor"), &JsValue::from_str("#ffffff"));
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("borderWidth"), &JsValue::from_f64(2.0));
         let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("hoverOffset"), &JsValue::from_f64(8.0));
-        let _ = js_sys::Reflect::set(&dataset, &JsValue::from_str("radius"), &JsValue::from_str("78%"));
 
         let datasets = js_sys::Array::new();
         datasets.push(&dataset);
@@ -563,30 +465,22 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("pointStyle"), &JsValue::from_str("circle"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxWidth"), &JsValue::from_f64(10.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("boxHeight"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(12.0));
+        let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("padding"), &JsValue::from_f64(14.0));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("color"), &JsValue::from_str("#334155"));
         let _ = js_sys::Reflect::set(&legend_labels, &JsValue::from_str("font"), &font_obj);
 
         let legend_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("position"), &JsValue::from_str("right"));
-        let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("align"), &JsValue::from_str("center"));
         let _ = js_sys::Reflect::set(&legend_obj, &JsValue::from_str("labels"), &legend_labels);
 
         let plugins_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&plugins_obj, &JsValue::from_str("legend"), &legend_obj);
 
-        let layout_obj = js_sys::Object::new();
-        let padding_obj = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("left"), &JsValue::from_f64(0.0));
-        let _ = js_sys::Reflect::set(&padding_obj, &JsValue::from_str("right"), &JsValue::from_f64(10.0));
-        let _ = js_sys::Reflect::set(&layout_obj, &JsValue::from_str("padding"), &padding_obj);
-
         let options_obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("responsive"), &JsValue::TRUE);
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("62%"));
+        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("cutout"), &JsValue::from_str("65%"));
         let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("plugins"), &plugins_obj);
-        let _ = js_sys::Reflect::set(&options_obj, &JsValue::from_str("layout"), &layout_obj);
 
         let config = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("doughnut"));
@@ -609,7 +503,118 @@ fn DoughnutChart(data: Vec<CustomerChartDatum>) -> impl IntoView {
     });
 
     view! {
-        <div style="height: 210px; width: 100%; position: relative; overflow: visible;">
+        <div style="height: 180px; max-width: 260px; margin: 0 auto; position: relative;">
+            <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
+        </div>
+    }
+}
+
+#[component]
+fn HistoryBarChart(data: Vec<HistoricalPoint>) -> impl IntoView {
+    let canvas_ref = create_node_ref::<html::Canvas>();
+
+    create_effect(move |_| {
+        let Some(canvas) = canvas_ref.get() else {
+            return;
+        };
+
+        let labels = data.iter().map(|d| d.label.clone()).collect::<Vec<_>>();
+        let passed = data.iter().map(|d| d.passed as f64).collect::<Vec<_>>();
+        let failed = data.iter().map(|d| d.failed as f64).collect::<Vec<_>>();
+
+        let labels_js = serde_wasm_bindgen::to_value(&labels).unwrap_or(JsValue::NULL);
+        let passed_js = serde_wasm_bindgen::to_value(&passed).unwrap_or(JsValue::NULL);
+        let failed_js = serde_wasm_bindgen::to_value(&failed).unwrap_or(JsValue::NULL);
+
+        let chart_ctor = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("Chart"))
+            .ok()
+            .filter(|v| !v.is_undefined() && !v.is_null());
+
+        let Some(chart_ctor) = chart_ctor else {
+            log("Chart.js is not loaded on window.Chart");
+            return;
+        };
+
+        let window = web_sys::window().unwrap();
+        let chart_key = JsValue::from_str("__jde_history_chart");
+
+        if let Ok(existing) = js_sys::Reflect::get(&window, &chart_key) {
+            if !existing.is_undefined() && !existing.is_null() {
+                if let Ok(destroy_fn) = js_sys::Reflect::get(&existing, &JsValue::from_str("destroy")) {
+                    if let Some(destroy) = destroy_fn.dyn_ref::<js_sys::Function>() {
+                        let _ = destroy.call0(&existing);
+                    }
+                }
+            }
+        }
+
+        let dataset_passed = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("label"), &JsValue::from_str("Passed"));
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("data"), &passed_js);
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#10b981"));
+        let _ = js_sys::Reflect::set(&dataset_passed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
+
+        let dataset_failed = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("label"), &JsValue::from_str("Failed"));
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("data"), &failed_js);
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("backgroundColor"), &JsValue::from_str("#ef4444"));
+        let _ = js_sys::Reflect::set(&dataset_failed, &JsValue::from_str("borderRadius"), &JsValue::from_f64(4.0));
+
+        let datasets = js_sys::Array::new();
+        datasets.push(&dataset_passed);
+        datasets.push(&dataset_failed);
+
+        let data_obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("labels"), &labels_js);
+        let _ = js_sys::Reflect::set(&data_obj, &JsValue::from_str("datasets"), &datasets.into());
+
+        let x_ticks = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&x_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
+
+        let y_ticks = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&y_ticks, &JsValue::from_str("color"), &JsValue::from_str("#475569"));
+
+        let x_scale = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&x_scale, &JsValue::from_str("ticks"), &x_ticks);
+
+        let y_scale = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("beginAtZero"), &JsValue::TRUE);
+        let _ = js_sys::Reflect::set(&y_scale, &JsValue::from_str("ticks"), &y_ticks);
+
+        let scales = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("x"), &x_scale);
+        let _ = js_sys::Reflect::set(&scales, &JsValue::from_str("y"), &y_scale);
+
+        let legend = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&legend, &JsValue::from_str("position"), &JsValue::from_str("top"));
+
+        let plugins = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&plugins, &JsValue::from_str("legend"), &legend);
+
+        let options = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("responsive"), &JsValue::TRUE);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("maintainAspectRatio"), &JsValue::FALSE);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("plugins"), &plugins);
+        let _ = js_sys::Reflect::set(&options, &JsValue::from_str("scales"), &scales);
+
+        let config = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("type"), &JsValue::from_str("bar"));
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("data"), &data_obj);
+        let _ = js_sys::Reflect::set(&config, &JsValue::from_str("options"), &options);
+
+        let args = js_sys::Array::new();
+        args.push(canvas.as_ref());
+        args.push(&config);
+
+        if let Some(constructor) = chart_ctor.dyn_ref::<js_sys::Function>() {
+            if let Ok(chart_instance) = js_sys::Reflect::construct(constructor, &args) {
+                let _ = js_sys::Reflect::set(&window, &chart_key, &chart_instance);
+            }
+        }
+    });
+
+    view! {
+        <div style="height: 420px; width: 100%; position: relative;">
             <canvas node_ref=canvas_ref style="width: 100%; height: 100%;"></canvas>
         </div>
     }
@@ -648,8 +653,8 @@ fn App() -> impl IntoView {
         |selected| async move {
             match selected {
                 Some(env) => {
-                    let records = fetch_history_json_data(&env.customer, &env.env_name).await?;
-                    Ok::<(EnvStatus, Vec<HistoricalJsonRecord>), String>((env, records))
+                    let points = fetch_history_data(&env.customer, &env.env_name).await?;
+                    Ok::<(EnvStatus, Vec<HistoricalPoint>), String>((env, points))
                 }
                 None => Err("No historical environment selected.".to_string()),
             }
@@ -854,70 +859,40 @@ fn App() -> impl IntoView {
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                                 <div style="font-weight: 800; margin-bottom: 10px; color: #0f172a;">
-                                                                    "Health Check Details"
+                                                                    "Instance Details"
                                                                 </div>
 
                                                                 <div style="display: grid; gap: 10px;">
                                                                     {
                                                                         raw_json
                                                                             .iter()
-                                                                            .map(|item| {
-                                                                                let instance_title = item
-                                                                                    .instance_name
-                                                                                    .clone()
-                                                                                    .unwrap_or_else(|| "-".to_string());
-
+                                                                            .enumerate()
+                                                                            .map(|(idx, item)| {
                                                                                 view! {
-                                                                                    <details
-                                                                                        style="border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; overflow: hidden;"
-                                                                                    >
-                                                                                        <summary
-                                                                                            style="cursor: pointer; list-style: none; padding: 12px 14px; font-size: 0.82rem; font-weight: 900; color: #0f172a; user-select: none;"
-                                                                                        >
-                                                                                            {instance_title}
-                                                                                        </summary>
+                                                                                    <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc;">
+                                                                                        <div style="font-size: 0.72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px;">
+                                                                                            {format!("Instance {}", idx + 1)}
+                                                                                        </div>
 
-                                                                                        <div style="padding: 0 14px 14px 14px;">
-                                                                                            <div style="overflow-x: auto;">
-                                                                                                <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-size: 0.82rem;">
-                                                                                                    <tbody>
-                                                                                                        <tr>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800; width: 220px;">
-                                                                                                                "Instance Name"
-                                                                                                            </td>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-                                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                        <tr>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800;">
-                                                                                                                "Instance Status"
-                                                                                                            </td>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-                                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                        <tr>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 800;">
-                                                                                                                "Health Status"
-                                                                                                            </td>
-                                                                                                            <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-                                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                        <tr>
-                                                                                                            <td style="padding: 10px 12px; background: #f8fafc; color: #475569; font-weight: 800; vertical-align: top;">
-                                                                                                                "Details"
-                                                                                                            </td>
-                                                                                                            <td style="padding: 10px 12px; color: #0f172a; white-space: pre-wrap; word-break: break-word;">
-                                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                    </tbody>
-                                                                                                </table>
+                                                                                        <div style="display: grid; gap: 6px; color: #334155; font-size: 0.82rem;">
+                                                                                            <div>
+                                                                                                <strong>"Instance Name: "</strong>
+                                                                                                {item.instance_name.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <strong>"Instance Status: "</strong>
+                                                                                                {item.instance_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <strong>"Health Status: "</strong>
+                                                                                                {item.health_status.clone().unwrap_or_else(|| "-".to_string())}
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <strong>"Details: "</strong>
+                                                                                                {item.details.clone().unwrap_or_else(|| "-".to_string())}
                                                                                             </div>
                                                                                         </div>
-                                                                                    </details>
+                                                                                    </div>
                                                                                 }
                                                                             })
                                                                             .collect_view()
@@ -972,10 +947,10 @@ fn App() -> impl IntoView {
                                                     </>
                                                 }.into_view(),
 
-                                                Ok((env, records)) => {
-                                                    let total_passed: usize = records.iter().map(|p| p.passed).sum();
-                                                    let total_failed: usize = records.iter().map(|p| p.failed).sum();
-                                                    let sample_count = records.len();
+                                                Ok((env, points)) => {
+                                                    let total_passed: usize = points.iter().map(|p| p.passed).sum();
+                                                    let total_failed: usize = points.iter().map(|p| p.failed).sum();
+                                                    let sample_count = points.len();
 
                                                     view! {
                                                         <>
@@ -1013,59 +988,30 @@ fn App() -> impl IntoView {
                                                                 </div>
 
                                                                 <div style="color: #0f172a; font-size: 1.35rem; font-weight: 900; margin: 6px 0 10px 0;">
-                                                                    {format!("{} Historical JSON", env.env_name)}
+                                                                    {format!("{} Historical Health", env.env_name)}
                                                                 </div>
 
-                                                                <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 4px;">
-                                                                    <div>{format!("Files: {}", sample_count)}</div>
+                                                                <div style="display: flex; gap: 12px; flex-wrap: wrap; color: #475569; font-size: 0.82rem; margin-bottom: 12px;">
+                                                                    <div>{format!("Samples: {}", sample_count)}</div>
                                                                     <div>{format!("Passed: {}", total_passed)}</div>
                                                                     <div>{format!("Failed: {}", total_failed)}</div>
                                                                     <div>"Showing latest 15 files"</div>
                                                                 </div>
+
+                                                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
+                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px;"></span>
+                                                                        <span>"Passed"</span>
+                                                                    </div>
+                                                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155;">
+                                                                        <span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px;"></span>
+                                                                        <span>"Failed"</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
 
-                                                            <div style="display: grid; gap: 10px;">
-                                                                {
-                                                                    records
-                                                                        .into_iter()
-                                                                        .map(|record| {
-                                                                            view! {
-                                                                                <details style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                                                    <summary style="cursor: pointer; list-style: none; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; user-select: none;">
-                                                                                        <div style="min-width: 0;">
-                                                                                            <div style="font-size: 0.84rem; font-weight: 900; color: #0f172a; line-height: 1.2;">
-                                                                                                {record.label.clone()}
-                                                                                            </div>
-                                                                                            <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px; word-break: break-word;">
-                                                                                                {record.filename.clone()}
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-                                                                                            <span style="font-size: 0.70rem; font-weight: 800; color: #10b981; background: #ecfdf5; padding: 4px 8px; border-radius: 999px;">
-                                                                                                {format!("OK {}", record.passed)}
-                                                                                            </span>
-                                                                                            <span style="font-size: 0.70rem; font-weight: 800; color: #ef4444; background: #fef2f2; padding: 4px 8px; border-radius: 999px;">
-                                                                                                {format!("ERR {}", record.failed)}
-                                                                                            </span>
-                                                                                            <span style="font-size: 0.70rem; font-weight: 800; color: #334155; background: #f1f5f9; padding: 4px 8px; border-radius: 999px;">
-                                                                                                {format!("TOTAL {}", record.total)}
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    </summary>
-
-                                                                                    <div style="padding: 0 16px 16px 16px;">
-                                                                                        <div style="background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);">
-                                                                                            <pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 0.76rem; line-height: 1.45; overflow-x: auto;">
-                                                                                                {record.pretty_json.clone()}
-                                                                                            </pre>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </details>
-                                                                            }
-                                                                        })
-                                                                        .collect_view()
-                                                                }
+                                                            <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                                                <HistoryBarChart data=points.clone() />
                                                             </div>
                                                         </>
                                                     }.into_view()
@@ -1184,25 +1130,13 @@ fn App() -> impl IntoView {
                                         };
 
                                         let health_pct = calc_pct(total_ok, total_inst);
-                                        let customer_groups = group_by_customer(items.clone(), filter.get());
+                                        let customer_groups = group_by_customer(items, filter.get());
                                         let chart_data = build_customer_chart_data(&customer_groups);
-
-                                        let healthy_envs: Vec<EnvStatus> = filtered_for_summary
-                                            .iter()
-                                            .cloned()
-                                            .filter(|i| i.err == 0)
-                                            .collect();
-
-                                        let failed_envs: Vec<EnvStatus> = filtered_for_summary
-                                            .iter()
-                                            .cloned()
-                                            .filter(|i| i.err > 0)
-                                            .collect();
 
                                         view! {
                                             <>
-                                                <div style="display: grid; grid-template-columns: minmax(520px, 620px) 1fr; gap: 12px; margin-bottom: 14px;">
-                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: visible;">
+                                                <div style="display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 12px; margin-bottom: 14px;">
+                                                    <div style="background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                                                             <div>
                                                                 <div style="color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
@@ -1269,116 +1203,6 @@ fn App() -> impl IntoView {
                                                     </div>
                                                 </div>
 
-                                                <div style="display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 12px; margin-bottom: 14px;">
-                                                    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                        <div style="padding: 12px 12px 8px 12px; font-size: 0.82rem; font-weight: 900; color: #0f172a;">
-                                                            "Failed Environments"
-                                                        </div>
-                                                        <div style="padding: 0 12px 12px 12px;">
-                                                            <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                                <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
-                                                                    <thead style="position: sticky; top: 0; background: #f8fafc;">
-                                                                        <tr>
-                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
-                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
-                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Failed"</th>
-                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {
-                                                                            failed_envs
-                                                                                .into_iter()
-                                                                                .map(|item| {
-                                                                                    let item_for_click = item.clone();
-
-                                                                                    view! {
-                                                                                        <tr
-                                                                                            on:click=move |_| {
-                                                                                                if let Some(window) = web_sys::window() {
-                                                                                                    if let Ok(history) = window.history() {
-                                                                                                        let _ = history.push_state_with_url(
-                                                                                                            &JsValue::NULL,
-                                                                                                            "",
-                                                                                                            Some("#details"),
-                                                                                                        );
-                                                                                                    }
-                                                                                                }
-                                                                                                set_selected_env.set(Some(item_for_click.clone()));
-                                                                                                set_page_view.set(PageView::Detail);
-                                                                                            }
-                                                                                            style="cursor: pointer;"
-                                                                                        >
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #ef4444; text-align: right; font-weight: 800;">{item.err}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
-                                                                                        </tr>
-                                                                                    }
-                                                                                })
-                                                                                .collect_view()
-                                                                        }
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;">
-                                                        <div style="padding: 12px 12px 8px 12px; font-size: 0.82rem; font-weight: 900; color: #0f172a;">
-                                                            "Healthy Environments"
-                                                        </div>
-                                                        <div style="padding: 0 12px 12px 12px;">
-                                                            <div style="max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                                <table style="width: 100%; border-collapse: collapse; font-size: 0.72rem; background: white;">
-                                                                    <thead style="position: sticky; top: 0; background: #f8fafc;">
-                                                                        <tr>
-                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Customer"</th>
-                                                                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Env"</th>
-                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Healthy"</th>
-                                                                            <th style="text-align: right; padding: 8px; border-bottom: 1px solid #e2e8f0; color: #475569;">"Total"</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {
-                                                                            healthy_envs
-                                                                                .into_iter()
-                                                                                .map(|item| {
-                                                                                    let item_for_click = item.clone();
-
-                                                                                    view! {
-                                                                                        <tr
-                                                                                            on:click=move |_| {
-                                                                                                if let Some(window) = web_sys::window() {
-                                                                                                    if let Ok(history) = window.history() {
-                                                                                                        let _ = history.push_state_with_url(
-                                                                                                            &JsValue::NULL,
-                                                                                                            "",
-                                                                                                            Some("#details"),
-                                                                                                        );
-                                                                                                    }
-                                                                                                }
-                                                                                                set_selected_env.set(Some(item_for_click.clone()));
-                                                                                                set_page_view.set(PageView::Detail);
-                                                                                            }
-                                                                                            style="cursor: pointer;"
-                                                                                        >
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">{item.customer}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 800;">{item.env_name}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #10b981; text-align: right; font-weight: 800;">{item.ok}</td>
-                                                                                            <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; text-align: right;">{item.total}</td>
-                                                                                        </tr>
-                                                                                    }
-                                                                                })
-                                                                                .collect_view()
-                                                                        }
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
                                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; align-items: stretch;">
                                                     {
                                                         customer_groups
@@ -1386,7 +1210,6 @@ fn App() -> impl IntoView {
                                                             .map(|group| {
                                                                 let customer_pct = calc_pct(group.ok, group.total);
                                                                 let customer_healthy = group.err == 0;
-                                                                let max_bar_value = group.envs.iter().map(|e| e.total).max().unwrap_or(1);
 
                                                                 view! {
                                                                     <div style="background: #ffffff; border-radius: 12px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-height: 220px; display: flex; flex-direction: column;">
@@ -1408,7 +1231,7 @@ fn App() -> impl IntoView {
                                                                             </div>
                                                                         </div>
 
-                                                                        <div style="display: flex; align-items: end; justify-content: space-between; gap: 8px; min-height: 108px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                                                                        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 92px; padding: 8px 6px 6px 6px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0;">
                                                                             {
                                                                                 group.envs
                                                                                     .into_iter()
@@ -1416,20 +1239,14 @@ fn App() -> impl IntoView {
                                                                                         let item_for_click = item.clone();
                                                                                         let item_for_history = item.clone();
 
-                                                                                        let ok_height = if max_bar_value > 0 {
-                                                                                            ((item.ok as f32 / max_bar_value as f32) * 64.0).max(if item.ok > 0 { 4.0 } else { 1.0 })
-                                                                                        } else {
-                                                                                            1.0
-                                                                                        };
-
-                                                                                        let err_height = if max_bar_value > 0 {
-                                                                                            ((item.err as f32 / max_bar_value as f32) * 64.0).max(if item.err > 0 { 4.0 } else { 1.0 })
-                                                                                        } else {
-                                                                                            1.0
-                                                                                        };
+                                                                                        let ok_width = calc_pct(item.ok, item.total).max(if item.ok > 0 { 4.0 } else { 1.0 });
+                                                                                        let err_width = calc_pct(item.err, item.total).max(if item.err > 0 { 4.0 } else { 1.0 });
 
                                                                                         view! {
-                                                                                            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 4px;" title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)>
+                                                                                            <div
+                                                                                                style="display: flex; flex-direction: column; gap: 4px;"
+                                                                                                title=format!("{} | OK: {} | ERR: {} | TOTAL: {}", item.env_name, item.ok, item.err, item.total)
+                                                                                            >
                                                                                                 <div
                                                                                                     on:click=move |_| {
                                                                                                         if let Some(window) = web_sys::window() {
@@ -1444,35 +1261,42 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_env.set(Some(item_for_click.clone()));
                                                                                                         set_page_view.set(PageView::Detail);
                                                                                                     }
-                                                                                                    style="width: 100%; display: flex; align-items: end; justify-content: center; gap: 6px; cursor: pointer;"
+                                                                                                    style="cursor: pointer;"
                                                                                                 >
-                                                                                                    <div style="height: 72px; display: flex; align-items: end; justify-content: center; gap: 4px;">
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1;">
-                                                                                                                {item.ok}
-                                                                                                            </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #10b981; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                ok_height,
-                                                                                                                if item.ok > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
+                                                                                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                                                                                        <div style="font-size: 0.64rem; font-weight: 900; color: #1e293b; line-height: 1;">
+                                                                                                            {item.env_name.clone()}
                                                                                                         </div>
-
-                                                                                                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 2px; width: 14px;">
-                                                                                                            <div style="font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1;">
-                                                                                                                {item.err}
-                                                                                                            </div>
-                                                                                                            <div style=format!(
-                                                                                                                "width: 100%; height: {:.2}px; background: #ef4444; border-radius: 4px 4px 0 0; min-height: {};",
-                                                                                                                err_height,
-                                                                                                                if item.err > 0 { "4px" } else { "1px" }
-                                                                                                            )></div>
+                                                                                                        <div style="font-size: 0.52rem; color: #64748b;">
+                                                                                                            {format!("{}/{}", item.ok, item.total)}
                                                                                                         </div>
                                                                                                     </div>
-                                                                                                </div>
 
-                                                                                                <div style="font-size: 0.58rem; font-weight: 900; color: #1e293b; line-height: 1; text-align: center; word-break: break-word;">
-                                                                                                    {item.env_name.clone()}
+                                                                                                    <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                                                                                                        <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                                                                                                            <div style="width: 24px; font-size: 0.50rem; font-weight: 800; color: #10b981; line-height: 1; text-align: right;">
+                                                                                                                {item.ok}
+                                                                                                            </div>
+                                                                                                            <div style="height: 10px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                                                                                                <div style=format!(
+                                                                                                                    "height: 100%; width: {:.2}%; background: #10b981; border-radius: 999px;",
+                                                                                                                    ok_width
+                                                                                                                )></div>
+                                                                                                            </div>
+                                                                                                        </div>
+
+                                                                                                        <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+                                                                                                            <div style="width: 24px; font-size: 0.50rem; font-weight: 800; color: #ef4444; line-height: 1; text-align: right;">
+                                                                                                                {item.err}
+                                                                                                            </div>
+                                                                                                            <div style="height: 10px; flex: 1; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+                                                                                                                <div style=format!(
+                                                                                                                    "height: 100%; width: {:.2}%; background: #ef4444; border-radius: 999px;",
+                                                                                                                    err_width
+                                                                                                                )></div>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </div>
                                                                                                 </div>
 
                                                                                                 <button
@@ -1489,7 +1313,7 @@ fn App() -> impl IntoView {
                                                                                                         set_selected_history_env.set(Some(item_for_history.clone()));
                                                                                                         set_page_view.set(PageView::History);
                                                                                                     }
-                                                                                                    style="border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
+                                                                                                    style="align-self: flex-start; margin-top: 2px; border: none; background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.56rem;"
                                                                                                 >
                                                                                                     "History"
                                                                                                 </button>

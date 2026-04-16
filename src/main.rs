@@ -854,7 +854,7 @@ fn App() -> impl IntoView {
 
                                                             <div style="background: white; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
                                                                 <div style="font-weight: 800; margin-bottom: 10px; color: #0f172a;">
-                                                                    "Instance Details"
+                                                                    "Health Check Details"
                                                                 </div>
 
                                                                 <div style="display: grid; gap: 10px;">
